@@ -33,7 +33,8 @@ async def run_all_evals():
     print(" 🏦  TIRENN BANKING AI EVALUATION HARNESS")
     print("=" * 78)
 
-    print(" Initializing 5-Layer Hybrid AI Evaluation Matrix...\n")
+    print(" Initializing 6-Layer Hybrid AI Evaluation Matrix...\n")
+
 
 
 
@@ -116,7 +117,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 5. LAYER 5: Long-Running Multi-Turn Workflow State Evals (7-Day TTL)
     # -------------------------------------------------------------
-    print(" [5/5] Running Layer 5: Long-Running Multi-Turn Workflow State Evals...")
+    print(" [5/6] Running Layer 5: Long-Running Multi-Turn Workflow State Evals...")
     from tests.evals.test_workflow_state import workflow_evaluator
     wf_results = await workflow_evaluator.eval_workflow_lifecycle()
     for layer, test_name, passed, details in wf_results:
@@ -126,6 +127,21 @@ async def run_all_evals():
             "passed": passed,
             "details": details[:35]
         })
+
+    # -------------------------------------------------------------
+    # 6. LAYER 6: AI Token & Cost Tracking Evals (Dynamic Pricing)
+    # -------------------------------------------------------------
+    print(" [6/6] Running Layer 6: AI Token & Cost Tracking Evals...")
+    from tests.evals.test_cost_tracker import cost_evaluator
+    cost_results = await cost_evaluator.eval_cost_tracking()
+    for layer, test_name, passed, details in cost_results:
+        all_results.append({
+            "layer": "Layer 6: Cost",
+            "name": test_name,
+            "passed": passed,
+            "details": details[:35]
+        })
+
 
 
 

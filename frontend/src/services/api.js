@@ -196,7 +196,16 @@ export const aiAssistantApi = {
     const res = await aiClient.get('/session/history');
     return res.data;
   },
+  getCostAnalytics: async () => {
+    const res = await aiClient.get('/analytics/cost');
+    return res.data;
+  },
+  resetCostAnalytics: async () => {
+    const res = await aiClient.post('/analytics/cost/reset');
+    return res.data;
+  },
 };
+
 
 
 

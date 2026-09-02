@@ -133,4 +133,27 @@ async def get_session_history(
     }
 
 
+@router.get("/analytics/cost")
+async def get_cost_analytics():
+    """
+    Returns real-time AI token usage and estimated USD cost metrics for the Admin Dashboard.
+    """
+    from app.services.cost_tracker_service import cost_tracker_service
+    return await cost_tracker_service.get_cost_summary()
+
+
+@router.post("/analytics/cost/reset")
+async def reset_cost_analytics():
+    """
+    Resets all AI token and cost metrics in Redis.
+    """
+    from app.services.cost_tracker_service import cost_tracker_service
+    success = await cost_tracker_service.reset_metrics()
+    return {
+        "status": "success" if success else "error",
+        "message": "AI token and cost metrics reset successfully."
+    }
+
+
+
 

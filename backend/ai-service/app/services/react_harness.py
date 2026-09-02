@@ -62,7 +62,9 @@ class ReActLoopHarness:
         model_override: Optional[str] = None,
         api_key_override: Optional[str] = None,
         scratchpad_context: Optional[List[str]] = None,
-        step_objective: Optional[str] = None
+        step_objective: Optional[str] = None,
+        domain: Optional[str] = "AGENT",
+        user_id: Optional[str] = "system"
     ) -> ChatResponse:
         """
         Runs the ReAct reasoning loop with full execution logging and optional inter-agent scratchpad injection.
@@ -97,7 +99,6 @@ class ReActLoopHarness:
         last_action_data: Optional[Dict[str, Any]] = None
         observations_summary: List[str] = []
 
-
         logger.info(
             f"\n"
             f"╔═══════════════════════════════════════════════════════════════════════╗\n"
@@ -120,8 +121,11 @@ class ReActLoopHarness:
                 tool_choice="auto",
                 temperature=0.1,
                 model_override=model_override,
-                api_key_override=api_key_override
+                api_key_override=api_key_override,
+                domain=domain,
+                user_id=user_id
             )
+
 
             # Handle quota limit / fatal failure across all models
             if err_msg and not choice:

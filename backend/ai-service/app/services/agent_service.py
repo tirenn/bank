@@ -42,7 +42,8 @@ class BaseSubAgent:
         model: Optional[str] = None,
         api_key_override: Optional[str] = None,
         scratchpad_context: Optional[List[str]] = None,
-        step_objective: Optional[str] = None
+        step_objective: Optional[str] = None,
+        user_id: Optional[str] = "system"
     ) -> ChatResponse:
         tools = await self.get_tools()
 
@@ -67,8 +68,11 @@ class BaseSubAgent:
                 model_override=model,
                 api_key_override=api_key_override,
                 scratchpad_context=scratchpad_context,
-                step_objective=step_objective
+                step_objective=step_objective,
+                domain=self.domain.upper(),
+                user_id=user_id
             )
+
 
         except Exception as e:
             logger.error(f"[ReAct Harness Error in {self.name}]: {e}", exc_info=True)
@@ -284,7 +288,8 @@ class AgentService:
         auth_token: str,
         openai_client: AsyncOpenAI,
         model_name: Optional[str] = None,
-        api_key_override: Optional[str] = None
+        api_key_override: Optional[str] = None,
+        user_id: Optional[str] = "system"
     ) -> ChatResponse:
         """
         Executes sequential sub-agent hand-offs, maintaining a shared scratchpad across steps.
@@ -320,7 +325,8 @@ class AgentService:
                 model=model_name,
                 api_key_override=api_key_override,
                 scratchpad_context=scratchpad_logs if scratchpad_logs else None,
-                step_objective=step.objective
+                step_objective=step.objective,
+                user_id=user_id
             )
 
             # Record step observation into scratchpad for next agents in the chain
@@ -349,6 +355,7 @@ class AgentService:
             action_data=last_action_data,
             tools_used=list(dict.fromkeys(all_tools_used)) # Remove duplicate tool names
         )
+
 
     async def process_chat(
         self,
@@ -446,7 +453,14 @@ class AgentService:
         if not exec_plan.is_multistep or len(exec_plan.plan) <= 1:
             target_domain = exec_plan.plan[0].domain if exec_plan.plan else "TRANSACTION"
             subagent = self._get_subagent_by_domain(target_domain)
-            response = await subagent.run(enriched_messages, auth_token, openai_client, model_name, api_key_override)
+            response = await subagent.run(
+                messages=enriched_messages,
+                auth_token=auth_token,
+                openai_client=openai_client,
+                model=model_name,
+                api_key_override=api_key_override,
+                user_id=user_id or "system"
+            )
         else:
             # 6. Multi-Step Chained Sequential Execution
             response = await self._execute_chained_plan(
@@ -455,8 +469,10 @@ class AgentService:
                 auth_token=auth_token,
                 openai_client=openai_client,
                 model_name=model_name,
-                api_key_override=api_key_override
+                api_key_override=api_key_override,
+                user_id=user_id or "system"
             )
+
 
         # Attach active workflow state to response
         response.active_workflow = active_wf

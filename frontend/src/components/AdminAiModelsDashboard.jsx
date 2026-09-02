@@ -8,9 +8,13 @@ import {
   AlertCircle,
   RotateCcw,
   Layers,
-  Lock
+  Lock,
+  DollarSign,
+  Activity,
+  Trash2
 } from 'lucide-react';
-import { adminModelApi } from '../services/api';
+import { adminModelApi, aiAssistantApi } from '../services/api';
+
 
 export const AdminAiModelsDashboard = () => {
   // Session-only Storage State for Dedicated Paid Models (Free-text input)
@@ -22,6 +26,40 @@ export const AdminAiModelsDashboard = () => {
   // PostgreSQL AI Models Database State (Read-Only Free Tier Pool)
   const [dbModels, setDbModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
+
+  // AI Token & Cost Analytics State
+  const [costData, setCostData] = useState(null);
+  const [loadingCost, setLoadingCost] = useState(false);
+
+  const fetchCostAnalytics = async () => {
+    setLoadingCost(true);
+    try {
+      const data = await aiAssistantApi.getCostAnalytics();
+      setCostData(data);
+    } catch (e) {
+      console.error('Failed to load cost analytics:', e);
+    } finally {
+      setLoadingCost(false);
+    }
+  };
+
+  const handleResetCostMetrics = async () => {
+    if (!window.confirm('Are you sure you want to reset all token and cost tracking metrics?')) return;
+    try {
+      await aiAssistantApi.resetCostAnalytics();
+      await fetchCostAnalytics();
+      setActionStatus({
+        success: true,
+        message: '🧹 AI Token & Cost analytics metrics reset successfully.'
+      });
+      setTimeout(() => setActionStatus(null), 4000);
+    } catch (e) {
+      setActionStatus({
+        success: false,
+        message: 'Failed to reset cost analytics.'
+      });
+    }
+  };
 
   const fetchDbModels = async () => {
     setLoadingModels(true);
@@ -37,7 +75,9 @@ export const AdminAiModelsDashboard = () => {
 
   useEffect(() => {
     fetchDbModels();
+    fetchCostAnalytics();
   }, []);
+
 
   const handleActivatePaidModel = (e) => {
     e.preventDefault();
@@ -352,6 +392,170 @@ export const AdminAiModelsDashboard = () => {
         </div>
       </div>
 
+      {/* ========================================================================= */}
+      {/* 3. AI TOKEN USAGE & REAL-TIME COST ANALYTICS                              */}
+      {/* ========================================================================= */}
+      <div className="p-6 rounded-2xl bg-[#0e1726]/60 border border-white/[0.08] backdrop-blur-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/30 text-amber-400 shadow-inner">
+              <DollarSign className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                AI Token & Cost Analytics
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono tracking-wider font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  REAL-TIME TELEMETRY
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Dynamic OpenRouter pricing calculator with atomic Redis aggregation across Sub-Agents.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchCostAnalytics}
+              disabled={loadingCost}
+              className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs text-slate-300 font-medium flex items-center gap-1.5 transition-all"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingCost ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              onClick={handleResetCostMetrics}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-xs text-rose-400 font-medium flex items-center gap-1.5 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Reset
+            </button>
+          </div>
+        </div>
+
+        {/* KPI Scorecard Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col justify-between">
+            <span className="text-xs text-slate-400 font-medium">Estimated Total Cost</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-bold font-mono text-amber-400">
+                ${costData?.summary?.total_usd?.toFixed(6) || '0.000000'}
+              </span>
+              <span className="text-[11px] text-slate-500 font-mono">USD</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-1">Calculated via OpenRouter rates</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col justify-between">
+            <span className="text-xs text-slate-400 font-medium">Total Processed Tokens</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-bold font-mono text-sky-400">
+                {costData?.summary?.total_tokens?.toLocaleString() || '0'}
+              </span>
+              <span className="text-[11px] text-slate-500 font-mono">tok</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-1">
+              Prompt: {costData?.summary?.prompt_tokens?.toLocaleString() || 0} | Output: {costData?.summary?.completion_tokens?.toLocaleString() || 0}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col justify-between">
+            <span className="text-xs text-slate-400 font-medium">Total LLM Completions</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-bold font-mono text-emerald-400">
+                {costData?.summary?.total_requests?.toLocaleString() || '0'}
+              </span>
+              <span className="text-[11px] text-slate-500 font-mono">calls</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-1">Router, ReAct & DAG Steps</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col justify-between">
+            <span className="text-xs text-slate-400 font-medium">Free Model Ratio</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-bold font-mono text-purple-400">
+                100%
+              </span>
+              <span className="text-[11px] text-slate-500 font-mono">Tier</span>
+            </div>
+            <span className="text-[10px] text-emerald-400/80 mt-1">$0.00 Surcharge</span>
+          </div>
+        </div>
+
+        {/* Sub-Agent Breakdown Pills */}
+        <div className="space-y-2">
+          <span className="text-xs font-semibold text-slate-300">Tokens & Cost by Sub-Agent Domain</span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {['TRANSACTION', 'WEALTH', 'SECURITY', 'IDENTITY', 'SUPPORT', 'SUPERVISOR'].map((dom) => {
+              const domInfo = costData?.by_domain?.[dom] || { cost_usd: 0, tokens: 0 };
+              return (
+                <div key={dom} className="p-3 rounded-lg bg-black/30 border border-white/[0.04] text-xs">
+                  <span className="font-bold text-slate-400 block text-[10px] tracking-wider">{dom}</span>
+                  <div className="font-mono text-slate-200 mt-1 font-semibold">{domInfo.tokens.toLocaleString()} tok</div>
+                  <div className="font-mono text-[10px] text-amber-400/80 mt-0.5">${domInfo.cost_usd.toFixed(6)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Real-time Audit Stream Table */}
+        <div className="space-y-2 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-sky-400" />
+              Live Token Audit Stream (Recent 50 Completions)
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-white/[0.06] overflow-x-auto bg-black/40 max-h-64 overflow-y-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-white/[0.03] text-slate-400 text-[11px] uppercase tracking-wider font-mono sticky top-0 backdrop-blur-md">
+                <tr>
+                  <th className="py-2.5 px-3">Time</th>
+                  <th className="py-2.5 px-3">Model</th>
+                  <th className="py-2.5 px-3">Domain</th>
+                  <th className="py-2.5 px-3">Prompt</th>
+                  <th className="py-2.5 px-3">Completion</th>
+                  <th className="py-2.5 px-3 text-right">Cost (USD)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04] font-mono text-[11px]">
+                {!costData?.recent_stream || costData.recent_stream.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="py-8 text-center text-slate-500 font-sans">
+                      No recent LLM completions recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  costData.recent_stream.map((entry, idx) => (
+                    <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-2 px-3 text-slate-400 text-[10px]">
+                        {new Date(entry.timestamp).toLocaleTimeString()}
+                      </td>
+                      <td className="py-2 px-3 text-slate-300 max-w-[180px] truncate" title={entry.model}>
+                        {entry.model}
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/[0.05] text-slate-300 border border-white/[0.08]">
+                          {entry.domain}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-slate-400">{entry.prompt_tokens}</td>
+                      <td className="py-2 px-3 text-slate-400">{entry.completion_tokens}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-amber-400">
+                        ${entry.cost_usd.toFixed(6)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 };
+

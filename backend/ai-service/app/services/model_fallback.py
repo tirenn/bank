@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import json
 from typing import List, Dict, Any, Optional, Tuple
 from openai import AsyncOpenAI
 from app.config import settings
+
 
 import httpx
 import time
@@ -119,8 +121,11 @@ async def execute_chat_with_fallback(
     tool_choice: Optional[str] = None,
     temperature: float = 0.1,
     model_override: Optional[str] = None,
-    api_key_override: Optional[str] = None
+    api_key_override: Optional[str] = None,
+    domain: Optional[str] = "GENERAL",
+    user_id: Optional[str] = "system"
 ) -> Tuple[Optional[Any], Optional[str], Optional[str]]:
+
     """
     Executes conversational AI completions & tool calling for SubAgents.
     - If Paid Mode: Executes strictly against the single paid model without fallback.
@@ -159,6 +164,20 @@ async def execute_chat_with_fallback(
             if response and response.choices and len(response.choices) > 0:
                 choice = response.choices[0].message
                 logger.info(f"[CHAT DEDICATED PAID] Succeeded with model: '{paid_model}'")
+
+                # Track token usage & costs asynchronously
+                if hasattr(response, "usage") and response.usage:
+                    p_tok = response.usage.prompt_tokens or 0
+                    c_tok = response.usage.completion_tokens or 0
+                    from app.services.cost_tracker_service import cost_tracker_service
+                    asyncio.create_task(cost_tracker_service.record_usage(
+                        model=paid_model,
+                        domain=domain or "GENERAL",
+                        prompt_tokens=p_tok,
+                        completion_tokens=c_tok,
+                        user_id=user_id or "system"
+                    ))
+
                 return choice, paid_model, None
             else:
                 return None, None, f"⚠️ Error: Model '{paid_model}' returned empty choices from OpenRouter."
@@ -189,6 +208,20 @@ async def execute_chat_with_fallback(
             if response and response.choices and len(response.choices) > 0:
                 choice = response.choices[0].message
                 logger.info(f"[CHAT FREE FALLBACK] Succeeded with model: {current_model}")
+
+                # Track token usage & costs asynchronously
+                if hasattr(response, "usage") and response.usage:
+                    p_tok = response.usage.prompt_tokens or 0
+                    c_tok = response.usage.completion_tokens or 0
+                    from app.services.cost_tracker_service import cost_tracker_service
+                    asyncio.create_task(cost_tracker_service.record_usage(
+                        model=current_model,
+                        domain=domain or "GENERAL",
+                        prompt_tokens=p_tok,
+                        completion_tokens=c_tok,
+                        user_id=user_id or "system"
+                    ))
+
                 return choice, current_model, None
             else:
                 failure_log.append(f"[{current_model}] returned empty choices")
@@ -198,6 +231,7 @@ async def execute_chat_with_fallback(
                 f"[CHAT FREE FALLBACK] Model '{current_model}' failed: {err_msg}. Cascading to next model tier..."
             )
             failure_log.append(f"[{current_model}]: {err_msg}")
+
 
     logger.error(
         f"[CHAT FREE FALLBACK] All {len(model_queue)} models exhausted: {'; '.join(failure_log)}"
