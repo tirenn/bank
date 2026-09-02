@@ -63,13 +63,15 @@ async def chat(
     else:
         context_messages = req.messages
 
-    # 3. Execute multi-agent processing with context
+    # 3. Execute multi-agent processing with context & workflow engine
     response = await agent_service.process_chat(
         messages=context_messages,
         auth_token=token,
         api_key_override=req.openrouter_api_key,
-        model_override=req.model.strip() if req.model else None
+        model_override=req.model.strip() if req.model else None,
+        user_id=user_id
     )
+
 
     # 4. Save conversation turn to Redis List with 1-day TTL (86,400 seconds)
     if req.messages and response and response.reply:

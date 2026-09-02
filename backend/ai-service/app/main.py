@@ -9,6 +9,7 @@ from app.middleware import RequestIDMiddleware, RedisSlidingWindowRateLimiter
 from app.services.faq_service import faq_service
 from app.services.rag_cache_service import rag_cache_service
 from app.services.chat_history_service import chat_history_service
+from app.services.workflow_state_service import workflow_state_service
 from app.api.v1.router import api_v1_router
 
 
@@ -21,12 +22,14 @@ rate_limiter = RedisSlidingWindowRateLimiter(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app_logger.info("Initializing ChromaDB FAQ Knowledge Base, Redis rate limiter, Redis RAG cache, and Conversation History...")
+    app_logger.info("Initializing ChromaDB FAQ Knowledge Base, Redis rate limiter, Redis RAG cache, Workflow Engine, and Conversation History...")
 
     await rate_limiter.connect()
     await rag_cache_service.connect()
     await chat_history_service.connect()
+    await workflow_state_service.connect()
     yield
+
 
 
 

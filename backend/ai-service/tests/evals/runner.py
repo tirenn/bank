@@ -33,7 +33,9 @@ async def run_all_evals():
     print(" 🏦  TIRENN BANKING AI EVALUATION HARNESS")
     print("=" * 78)
 
-    print(" Initializing 3-Layer Hybrid AI Evaluation Matrix...\n")
+    print(" Initializing 5-Layer Hybrid AI Evaluation Matrix...\n")
+
+
 
     auth_token = await get_test_auth_token()
 
@@ -87,7 +89,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 3. LAYER 3: ChromaDB Vector RAG Quality & Semantic Relevance
     # -------------------------------------------------------------
-    print(" [3/3] Running Layer 3: ChromaDB FAQ Vector RAG Quality Evals...")
+    print(" [3/4] Running Layer 3: ChromaDB FAQ Vector RAG Quality Evals...")
     rag_results = await rag_evaluator.eval_faq_retrieval()
     for r in rag_results:
         all_results.append({
@@ -96,6 +98,36 @@ async def run_all_evals():
             "passed": r["passed"],
             "details": f"Dist: {r['distance']} | Relevance: {r['relevance_score']}"
         })
+
+    # -------------------------------------------------------------
+    # 4. LAYER 4: Planner Orchestrator & Sequential Hand-off Evals
+    # -------------------------------------------------------------
+    print(" [4/5] Running Layer 4: Planner Orchestrator & Multi-Agent DAG Evals...")
+    from tests.evals.test_sequential_orchestrator import sequential_evaluator
+    orch_results = await sequential_evaluator.eval_plan_generation()
+    for layer, test_name, passed, details in orch_results:
+        all_results.append({
+            "layer": "Layer 4: Planner",
+            "name": test_name,
+            "passed": passed,
+            "details": details[:35]
+        })
+
+    # -------------------------------------------------------------
+    # 5. LAYER 5: Long-Running Multi-Turn Workflow State Evals (7-Day TTL)
+    # -------------------------------------------------------------
+    print(" [5/5] Running Layer 5: Long-Running Multi-Turn Workflow State Evals...")
+    from tests.evals.test_workflow_state import workflow_evaluator
+    wf_results = await workflow_evaluator.eval_workflow_lifecycle()
+    for layer, test_name, passed, details in wf_results:
+        all_results.append({
+            "layer": "Layer 5: Workflow",
+            "name": test_name,
+            "passed": passed,
+            "details": details[:35]
+        })
+
+
 
     elapsed_ms = (time.time() - start_time) * 1000.0
 

@@ -60,10 +60,12 @@ class ReActLoopHarness:
         auth_token: Optional[str] = None,
         openai_client: Optional[AsyncOpenAI] = None,
         model_override: Optional[str] = None,
-        api_key_override: Optional[str] = None
+        api_key_override: Optional[str] = None,
+        scratchpad_context: Optional[List[str]] = None,
+        step_objective: Optional[str] = None
     ) -> ChatResponse:
         """
-        Runs the ReAct reasoning loop with full execution logging.
+        Runs the ReAct reasoning loop with full execution logging and optional inter-agent scratchpad injection.
         """
         if not openai_client or not tools:
             raise ValueError("OpenAI client and tools are required for ReAct loop execution.")
@@ -72,6 +74,20 @@ class ReActLoopHarness:
         conversation_context: List[Dict[str, Any]] = [
             {"role": "system", "content": system_prompt}
         ]
+
+        if scratchpad_context:
+            scratchpad_text = "\n".join([f"• {entry}" for entry in scratchpad_context])
+            conversation_context.append({
+                "role": "system",
+                "content": f"📋 [INTER-AGENT SCRATCHPAD (PREVIOUS AGENT OBSERVATIONS)]:\n{scratchpad_text}\nUse the exact figures, currencies, and account numbers from previous steps."
+            })
+
+        if step_objective:
+            conversation_context.append({
+                "role": "system",
+                "content": f"🎯 [CURRENT STEP OBJECTIVE]: {step_objective}"
+            })
+
         for m in user_messages:
             sanitized_content = redact_text(m.content) if m.content else ""
             conversation_context.append({"role": m.role, "content": sanitized_content})
@@ -80,6 +96,7 @@ class ReActLoopHarness:
         last_action_type: Optional[str] = None
         last_action_data: Optional[Dict[str, Any]] = None
         observations_summary: List[str] = []
+
 
         logger.info(
             f"\n"
