@@ -1,127 +1,44 @@
-# Tirenn Frontend Client (`bank-frontend`): Architecture & Design System
+# Tirenn Frontend Client (`bank-frontend`): High-Level Architecture (HLD)
 
-This document details the architecture, state management, design tokens, and component hierarchy of the **Tirenn Banking Frontend (`bank-frontend`)**, built on **React 19**, **Vite**, and **Tailwind CSS**.
+This document provides the **High-Level Design (HLD)** of the **Tirenn Banking Frontend (`bank-frontend`)**, built with **React 19**, **Vite**, and **Tailwind CSS**.
 
 ---
 
-## 1. Architectural Topology & Component Hierarchy
+## 1. High-Level Component Topology
 
 ```mermaid
 graph TD
-    App[App.jsx Application Root] --> AuthCtx[AuthProvider / AuthContext]
-    AuthCtx --> Router[View Route Switcher]
+    App["App.jsx Root Shell"] --> AuthCtx["Auth Context (JWT State)"]
+    AuthCtx --> Portals["View Portals"]
 
-    subgraph CustomerPortals ["Customer Financial Views"]
-        Router --> Dashboard[DashboardPage.jsx]
-        Router --> Transfer[TransferPage.jsx]
-        Router --> ForexLoan[ForexLoanPage.jsx]
-        Router --> Security[SecurityCardsPage.jsx]
+    subgraph CustomerPortals ["Customer Banking Views"]
+        Portals --> Dashboard["DashboardPage (Balances & Summary)"]
+        Portals --> Transfer["TransferPage (P2P Transfers & Beneficiaries)"]
+        Portals --> Wealth["ForexLoanPage (Forex Converter & Loan Simulator)"]
+        Portals --> Security["SecurityCardsPage (Card Lock & Limit Slider)"]
     end
 
     subgraph AdminPortals ["Admin Telemetry Views"]
-        Router --> AdminAI[AdminAiPage.jsx]
-        Router --> AdminRAG[AdminRagPage.jsx]
+        Portals --> AdminAI["AdminAiPage (Real-Time Cost & Model Pool)"]
+        Portals --> AdminRAG["AdminRagPage (Vector Chunk Inspection & Ingestion)"]
     end
 
-    subgraph EmbeddedComponents ["Interactive Widgets & Components"]
-        Dashboard --> TxList[TransactionHistory.jsx]
-        Transfer --> TransferForm[TransferForm.jsx]
-        Transfer --> BeneficiaryList[BeneficiaryList.jsx]
-        ForexLoan --> ForexCalc[ForexCalculator.jsx]
-        ForexLoan --> LoanCalc[LoanSimulator.jsx]
-        Security --> CardMgmt[CardManagement.jsx]
-        AdminAI --> CostTrackerUI[AdminAiModelsDashboard.jsx]
-        AdminRAG --> RagChunks[RagChunkVisualizer.jsx]
-        
-        App --> CopilotWidget[BankingAiCopilot.jsx]
-        CopilotWidget --> ActionRenderer[ActionCardRenderer.jsx]
+    subgraph CopilotLayer ["Autonomous AI Copilot"]
+        App --> Copilot["BankingAiCopilot (ReAct Chat Assistant)"]
+        Copilot --> ActionCard["Interactive Action Card Renderer"]
     end
 
-    subgraph TransportTier ["Axios HTTP Transport"]
-        TransferForm --> CoreAPI["coreClient (Port 8085)"]
-        CardMgmt --> CoreAPI
-        ForexCalc --> CoreAPI
-        LoanCalc --> CoreAPI
-        CopilotWidget --> AIAPI["aiClient (Port 8005)"]
-        CostTrackerUI --> AIAPI
-        RagChunks --> AIAPI
+    subgraph TransportTier ["Axios Transport Tier"]
+        CustomerPortals --> CoreAPI["coreClient (Port 8085)"]
+        AdminPortals --> AIAPI["aiClient (Port 8005)"]
+        CopilotLayer --> AIAPI
     end
 ```
 
 ---
 
-## 2. Directory Structure
+## 2. Core Frontend Principles
 
-```
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── AdminAiModelsDashboard.jsx # AI token cost tracker & model registry
-│   │   ├── BankingAiCopilot.jsx       # AI Assistant chat interface
-│   │   ├── BeneficiaryList.jsx        # Saved transfer payees manager
-│   │   ├── CardManagement.jsx         # Card freeze toggle & limit adjusters
-│   │   ├── ForexCalculator.jsx        # Live currency converter
-│   │   ├── LoanSimulator.jsx          # Loan monthly payment calculator
-│   │   ├── RagChunkVisualizer.jsx     # ChromaDB vector chunk browser
-│   │   ├── TransactionHistory.jsx     # Paginated ledger transaction stream
-│   │   └── TransferForm.jsx           # Manual P2P transfer interface
-│   ├── context/
-│   │   └── AuthContext.jsx            # User authentication state provider
-│   ├── pages/
-│   │   ├── AdminAiPage.jsx            # Administrative AI control portal
-│   │   ├── AdminRagPage.jsx           # Knowledge base management portal
-│   │   ├── DashboardPage.jsx          # Customer financial hub
-│   │   ├── ForexLoanPage.jsx          # Wealth & calculator portal
-│   │   ├── LoginPage.jsx              # Customer login interface
-│   │   ├── RegisterPage.jsx           # Customer registration & onboarding
-│   │   ├── SecurityCardsPage.jsx      # Security & card control portal
-│   │   └── TransferPage.jsx           # Fund transfer portal
-│   ├── services/
-│   │   └── api.js                     # Unified Axios clients & API methods
-│   ├── App.jsx                        # Main route dispatcher
-│   ├── index.css                      # Tailwind design tokens & custom utilities
-│   └── main.jsx                       # React DOM entrypoint
-├── Dockerfile                         # Production multi-stage Nginx container
-├── nginx.conf                         # Reverse proxy configuration
-└── vite.config.js                     # Vite build & plugin settings
-```
-
----
-
-## 3. Glassmorphism Design System & UX Standards
-
-The interface implements a modern, dark-mode **Glassmorphism Aesthetic**:
-* **Background Palette**: Deep charcoal and navy canvas (`#0b0f19` / `#0e1726`).
-* **Glass Surfaces**: `backdrop-blur-xl bg-white/[0.03] border border-white/[0.08]` providing visual hierarchy without heavy flat panels.
-* **Accent Colors**:
-  - Emerald (`#10b981`): Safe states, active cards, confirmed transactions, positive cash flow.
-  - Amber / Orange (`#f59e0b`): Real-time token expenses, warning states, pending draft actions.
-  - Sky Blue (`#0ea5e9`): Informational data, token counts, currency rates.
-  - Rose (`#f43f5e`): Frozen cards, destructive actions, overdraft errors.
-
----
-
-## 4. Interactive AI Action Cards & Human-in-the-Loop Workflow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Customer as 👤 Customer
-    participant Copilot as 🤖 BankingAiCopilot
-    participant CoreAPI as ⚙️ Core Banking API (Port 8085)
-    participant Ledger as 💾 PostgreSQL Ledger
-
-    Customer->>Copilot: "Transfer $200 to Bob"
-    Copilot-->>Customer: Renders Interactive Action Card (TRANSFER_DRAFT)
-    
-    rect rgb(30, 41, 59)
-    Note over Customer,Copilot: Human-in-the-Loop Security Guardrail
-    Customer->>Copilot: Clicks "Confirm & Execute Transfer"
-    Copilot->>CoreAPI: POST /api/v1/transactions/transfer (Bearer Token)
-    CoreAPI->>Ledger: Atomic ACID Transaction (Pessimistic Row Lock)
-    Ledger-->>CoreAPI: Success
-    CoreAPI-->>Copilot: 200 OK (Transfer Confirmed)
-    end
-
-    Copilot-->>Customer: Green Success Card + Updated Balance
-```
+1. **Dark-Mode Glassmorphism Aesthetic**: Deep navy and charcoal surfaces with `backdrop-blur-xl`, subtle borders (`border-white/[0.08]`), and status-aware color tokens (Emerald, Amber, Sky Blue, Rose).
+2. **Interactive AI Action Cards (Human-in-the-Loop)**: Sub-agents generate interactive confirmation widgets for critical actions (`TRANSFER_DRAFT`, `CARD_FROZEN`). Users must explicitly click "Confirm" to trigger the transaction.
+3. **Session-Safe API Key Storage**: Custom OpenRouter API keys and model overrides are strictly stored in `sessionStorage`, preventing persistent token leaks to local disk.
