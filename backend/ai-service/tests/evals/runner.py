@@ -33,10 +33,7 @@ async def run_all_evals():
     print(" 🏦  TIRENN BANKING AI EVALUATION HARNESS")
     print("=" * 78)
 
-    print(" Initializing 6-Layer Hybrid AI Evaluation Matrix...\n")
-
-
-
+    print(" Initializing 7-Layer Hybrid AI Evaluation Matrix...\n")
 
     auth_token = await get_test_auth_token()
 
@@ -45,7 +42,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 1. LAYER 1: Tool Registration & Deterministic Calculators
     # -------------------------------------------------------------
-    print(" [1/3] Running Layer 1: MCP Tool Registration & Execution Evals...")
+    print(" [1/7] Running Layer 1: MCP Tool Registration & Execution Evals...")
     reg_results = await tool_evaluator.eval_tool_registration()
     for r in reg_results:
         all_results.append({
@@ -67,7 +64,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 2. LAYER 2: Security, Privacy & Multi-Tenant Evals
     # -------------------------------------------------------------
-    print(" [2/3] Running Layer 2: Security, PII Redaction & Multi-Tenant Evals...")
+    print(" [2/7] Running Layer 2: Security, PII Redaction & Multi-Tenant Evals...")
     pii_results = security_evaluator.eval_pii_redaction()
     for r in pii_results:
         all_results.append({
@@ -90,7 +87,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 3. LAYER 3: ChromaDB Vector RAG Quality & Semantic Relevance
     # -------------------------------------------------------------
-    print(" [3/4] Running Layer 3: ChromaDB FAQ Vector RAG Quality Evals...")
+    print(" [3/7] Running Layer 3: ChromaDB FAQ Vector RAG Quality Evals...")
     rag_results = await rag_evaluator.eval_faq_retrieval()
     for r in rag_results:
         all_results.append({
@@ -103,7 +100,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 4. LAYER 4: Planner Orchestrator & Sequential Hand-off Evals
     # -------------------------------------------------------------
-    print(" [4/5] Running Layer 4: Planner Orchestrator & Multi-Agent DAG Evals...")
+    print(" [4/7] Running Layer 4: Planner Orchestrator & Multi-Agent DAG Evals...")
     from tests.evals.test_sequential_orchestrator import sequential_evaluator
     orch_results = await sequential_evaluator.eval_plan_generation()
     for layer, test_name, passed, details in orch_results:
@@ -117,7 +114,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 5. LAYER 5: Long-Running Multi-Turn Workflow State Evals (7-Day TTL)
     # -------------------------------------------------------------
-    print(" [5/6] Running Layer 5: Long-Running Multi-Turn Workflow State Evals...")
+    print(" [5/7] Running Layer 5: Long-Running Multi-Turn Workflow State Evals...")
     from tests.evals.test_workflow_state import workflow_evaluator
     wf_results = await workflow_evaluator.eval_workflow_lifecycle()
     for layer, test_name, passed, details in wf_results:
@@ -131,7 +128,7 @@ async def run_all_evals():
     # -------------------------------------------------------------
     # 6. LAYER 6: AI Token & Cost Tracking Evals (Dynamic Pricing)
     # -------------------------------------------------------------
-    print(" [6/6] Running Layer 6: AI Token & Cost Tracking Evals...")
+    print(" [6/7] Running Layer 6: AI Token & Cost Tracking Evals...")
     from tests.evals.test_cost_tracker import cost_evaluator
     cost_results = await cost_evaluator.eval_cost_tracking()
     for layer, test_name, passed, details in cost_results:
@@ -141,6 +138,21 @@ async def run_all_evals():
             "passed": passed,
             "details": details[:35]
         })
+
+    # -------------------------------------------------------------
+    # 7. LAYER 7: Prompt Injection & Adversarial Jailbreak Defense
+    # -------------------------------------------------------------
+    print(" [7/7] Running Layer 7: Prompt Injection & Adversarial Jailbreak Defense...")
+    from tests.evals.test_prompt_injection import prompt_injection_evaluator
+    injection_results = prompt_injection_evaluator.eval_prompt_injection()
+    for layer, test_name, passed, details in injection_results:
+        all_results.append({
+            "layer": "Layer 7: Injection",
+            "name": test_name,
+            "passed": passed,
+            "details": details[:35]
+        })
+
 
 
 

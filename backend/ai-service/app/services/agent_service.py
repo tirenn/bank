@@ -13,6 +13,8 @@ from app.services.react_harness import react_harness
 from app.services.prompt_loader import load_prompt
 from app.services.rag_cache_service import rag_cache_service
 from app.services.workflow_state_service import workflow_state_service
+from app.services.cost_tracker_service import cost_tracker_service
+from app.services.prompt_injection_guardrail import prompt_injection_guardrail
 
 from app.logger import app_logger as logger
 
@@ -367,8 +369,23 @@ class AgentService:
     ) -> ChatResponse:
         last_msg = messages[-1].content if messages else ""
 
+        # 0. Edge Security Guardrail: Prompt Injection & Jailbreak Defense (< 0.5 ms)
+        is_attack, attack_category, refusal = prompt_injection_guardrail.inspect_prompt(last_msg)
+        if is_attack:
+            logger.warning(
+                f"🚨 [PROMPT INJECTION BLOCKED] Category: {attack_category} | User: {user_id or 'anonymous'} | Prompt: '{last_msg[:80]}...'"
+            )
+            return ChatResponse(
+                reply=refusal,
+                action_type=None,
+                action_data=None,
+                tools_used=[f"prompt_injection_guardrail ({attack_category.lower()})"],
+                active_workflow=None
+            )
+
         # 1. Global Fast-Path: Check Redis Exact & Semantic Cache (0-4 ms)
         cached = await rag_cache_service.get_cached_answer(last_msg)
+
         if cached and cached.get("reply"):
             logger.info(f"⚡ [Redis Cache HIT] Returning cached answer for query: '{last_msg}'")
             return ChatResponse(
