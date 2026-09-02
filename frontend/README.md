@@ -1,16 +1,46 @@
-# React + Vite
+# Tirenn Frontend Client (`bank-frontend`)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Modern, responsive Banking UI and AI Copilot client built with **React 19**, **Vite**, and **Tailwind CSS**.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🌟 Key Features
 
-## React Compiler
+* **Customer Financial Dashboard**: Multi-account balances, categorized spending summaries, and real-time transaction ledger.
+* **Autonomous AI Banking Copilot**: Embedded conversational assistant capable of executing chained workflows, RAG FAQ queries, and multi-turn application forms.
+* **Interactive AI Action Cards**: Human-in-the-loop confirmation widgets for transfers (`TRANSFER_DRAFT`) and debit card locks (`CARD_FROZEN`).
+* **Security & Card Hub**: Instant debit card freeze/unfreeze controls and daily transfer limit adjustment sliders.
+* **Wealth & Calculators**: Live Forex converter with bank spread display and compound loan amortization simulator.
+* **Admin AI Telemetry & Cost Dashboard**: Real-time token usage KPIs, estimated USD spend breakdown by sub-agent domain, and live audit stream table.
+* **Admin Vector RAG Manager**: Ingest PDF/TXT files or raw text into ChromaDB with visual chunk inspection.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the Oxlint configuration
+## 🛠️ Local Development Setup
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start Vite development server (Port 5173)
+npm run dev
+
+# Build for production
+npm run build
+```
+
+---
+
+## 🌐 Production Docker Deployment
+
+The frontend is packaged using a multi-stage Alpine Nginx container:
+
+```bash
+docker compose up -d --build bank-frontend
+```
+
+Access the application in your browser at:
+👉 **`http://localhost:5173`**
