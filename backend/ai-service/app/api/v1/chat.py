@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Header, HTTPException, Request
 from app.domain.schemas import ChatRequest, ChatResponse
 from app.services.agent_service import agent_service
-from app.services.model_fallback import fetch_models_from_db
+from app.services.model_fallback import model_fallback, fetch_models_from_db
 from app.services.chat_history_service import chat_history_service
+
 from app.api.dependencies import extract_user_from_token
 
 router = APIRouter(prefix="/ai", tags=["AI Assistant"])
@@ -33,15 +34,20 @@ async def chat(
     user_payload = extract_user_from_token(token)
     user_id = str(user_payload.get("user_id", user_payload.get("email", "default_user")))
 
-    # 1. Validate selected model from user against active database models
-    if req.model and req.model.strip():
-        selected_model = req.model.strip()
-        active_models = await fetch_models_from_db()
-        if active_models and selected_model not in active_models:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Selected AI model '{selected_model}' is not registered or active in the database. Please select a valid model."
-            )
+    # 1. Centralized Model & API Key Validation
+    active_models = await fetch_models_from_db()
+    plan = model_fallback.resolve_model_execution_plan(
+        api_key=req.openrouter_api_key,
+        model_override=req.model,
+        active_db_models=active_models
+    )
+    if plan.error:
+        raise HTTPException(
+            status_code=400,
+            detail=plan.error
+        )
+
+
 
     # 2. Retrieve previous 10 conversation messages from Redis List for full contextual awareness
     history_messages = await chat_history_service.get_history(user_id, limit=10)

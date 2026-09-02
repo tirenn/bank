@@ -1,4 +1,4 @@
-﻿# Project Context: AURA Banking React Frontend
+﻿# Project Context: Tirenn Banking React Frontend
 
 ## Architecture & Technology Stack
 - **Framework**: React 18 + Vite

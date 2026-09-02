@@ -33,7 +33,8 @@ class ReActLoopHarness:
         tool_executor: Callable[[str, Dict[str, Any], Optional[str]], Awaitable[Tuple[str, Optional[str], Optional[Dict[str, Any]]]]],
         auth_token: Optional[str] = None,
         openai_client: Optional[AsyncOpenAI] = None,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        api_key_override: Optional[str] = None
     ) -> ChatResponse:
         """
         Runs the ReAct reasoning loop.
@@ -54,7 +55,6 @@ class ReActLoopHarness:
         last_action_data: Optional[Dict[str, Any]] = None
         observations_summary: List[str] = []
 
-
         logger.info(f"[ReAct Harness] Starting reasoning loop (Max Iterations: {self.max_iterations})")
 
         for iteration in range(1, self.max_iterations + 1):
@@ -66,8 +66,10 @@ class ReActLoopHarness:
                 tools=tools,
                 tool_choice="auto",
                 temperature=0.1,
-                model_override=model_override
+                model_override=model_override,
+                api_key_override=api_key_override
             )
+
 
             # Handle quota limit / fatal failure across all models
             if err_msg and not choice:

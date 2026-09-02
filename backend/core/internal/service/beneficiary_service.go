@@ -9,7 +9,6 @@ import (
 	"bank-core/internal/logger"
 )
 
-
 type BeneficiaryService struct {
 	repo domain.BeneficiaryRepository
 }
@@ -25,7 +24,7 @@ func (s *BeneficiaryService) AddBeneficiary(ctx context.Context, userID uint64, 
 
 	bankName := req.BankName
 	if bankName == "" {
-		bankName = "AURA Core Bank"
+		bankName = "Tirenn Core Bank"
 	}
 
 	b := &domain.Beneficiary{
@@ -56,4 +55,3 @@ func (s *BeneficiaryService) GetBeneficiaries(ctx context.Context, userID uint64
 func (s *BeneficiaryService) DeleteBeneficiary(ctx context.Context, userID, id uint64) error {
 	return s.repo.Delete(ctx, userID, id)
 }
-

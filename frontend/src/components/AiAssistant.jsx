@@ -14,15 +14,16 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: `Hello ${user?.full_name?.split(' ')[0] || 'there'}. I am **Nova**, your financial intelligence co-pilot.\n\nI have direct access to your banking core and knowledge base. How can I assist you today?`,
+      content: `Hello ${user?.full_name?.split(' ')[0] || 'there'}. I am **Tirenn**, your financial intelligence co-pilot.\n\nI have direct access to your banking core and knowledge base. How can I assist you today?`,
     },
   ]);
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('openrouter_key') || '');
-  const [model, setModel] = useState(localStorage.getItem('openrouter_model') || '');
+  const [apiKey, setApiKey] = useState(sessionStorage.getItem('openrouter_key') || '');
+  const [model, setModel] = useState(sessionStorage.getItem('openrouter_model') || '');
+
   const [availableModels, setAvailableModels] = useState([]);
   const [executingTransfer, setExecutingTransfer] = useState(false);
   const [copiedMessageIdx, setCopiedMessageIdx] = useState(null);
@@ -39,11 +40,10 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
         const data = await aiAssistantApi.getAvailableModels();
         if (data?.models && data.models.length > 0) {
           setAvailableModels(data.models);
-          const savedModel = localStorage.getItem('openrouter_model');
-          if (!savedModel || !data.models.includes(savedModel)) {
+          const savedModel = sessionStorage.getItem('openrouter_model');
+          if (!savedModel) {
             const chosen = data.default_model || data.models[0];
             setModel(chosen);
-            localStorage.setItem('openrouter_model', chosen);
           } else {
             setModel(savedModel);
           }
@@ -54,6 +54,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
     };
     fetchModels();
   }, []);
+
 
 
   useEffect(() => {
@@ -94,7 +95,10 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
 
     try {
       const payloadMessages = newMessages.map((m) => ({ role: m.role, content: m.content }));
-      const res = await aiAssistantApi.sendChat(payloadMessages, apiKey, model);
+      const currentApiKey = sessionStorage.getItem('openrouter_key') || '';
+      const currentModel = sessionStorage.getItem('openrouter_model') || model;
+      const res = await aiAssistantApi.sendChat(payloadMessages, currentApiKey, currentModel);
+
 
       setMessages([
         ...newMessages,
@@ -118,9 +122,10 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
         ...newMessages,
         {
           role: 'assistant',
-          content: `⚠️ **AI Service Notice:** ${serverDetail || 'Unable to reach Nova AI microservice. Ensure Python backend is active.'}`,
+          content: `⚠️ **AI Service Notice:** ${serverDetail || 'Unable to reach Tirenn AI microservice. Ensure Python backend is active.'}`,
         },
       ]);
+
     } finally {
       setLoading(false);
     }
@@ -161,11 +166,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
     }
   };
 
-  const saveSettings = () => {
-    localStorage.setItem('openrouter_key', apiKey.trim());
-    localStorage.setItem('openrouter_model', model);
-    setShowSettings(false);
-  };
+
 
   const handleResetSession = async () => {
     if (resetting || loading) return;
@@ -175,7 +176,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
       setMessages([
         {
           role: 'assistant',
-          content: `🔄 **Conversation Context Cleared**\n\nHello ${user?.full_name?.split(' ')[0] || 'there'}. I am **Nova**, your financial intelligence co-pilot. How can I assist you today?`,
+          content: `🔄 **Conversation Context Cleared**\n\nHello ${user?.full_name?.split(' ')[0] || 'there'}. I am **Tirenn**, your financial intelligence co-pilot. How can I assist you today?`,
         },
       ]);
       setTransferStatus({});
@@ -225,9 +226,10 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
             </div>
             <div>
               <div className="flex items-center space-x-1.5">
-                <h3 className="font-semibold text-xs text-white">Nova Financial Intelligence</h3>
+                <h3 className="font-semibold text-xs text-white">Tirenn Financial Intelligence</h3>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               </div>
+
               <p className="text-[10px] text-slate-500 font-mono">Tool calling • ChromaDB vector RAG</p>
             </div>
           </div>
@@ -243,13 +245,6 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-colors ${showSettings ? 'bg-white/[0.08] text-emerald-400' : ''}`}
-            title="Model & Key Settings"
-          >
-            <Settings className="h-3.5 w-3.5" />
-          </button>
-          <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-colors"
           >
@@ -258,60 +253,6 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
         </div>
       </div>
 
-
-      {/* Settings Overlay */}
-      {showSettings && (
-        <div className="p-4 bg-black/80 border-b border-white/[0.08] space-y-3 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-slate-300 flex items-center space-x-1.5 text-xs">
-              <Key className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Model Routing</span>
-            </span>
-          </div>
-
-          <div>
-            <label className="block text-[11px] text-slate-400 mb-1">OpenRouter Key (Optional)</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-or-v1-..."
-              className="w-full px-3 py-1.5 bg-black/60 border border-white/[0.08] rounded-lg text-slate-200 font-mono focus:outline-none focus:border-emerald-500/60 text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] text-slate-400 mb-1">Model (Loaded from Backend)</label>
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full px-3 py-1.5 bg-black/60 border border-white/[0.08] rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500/60 text-xs font-mono"
-            >
-              {availableModels.length > 0 ? (
-                availableModels.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))
-              ) : (
-                <option value={model}>{model || 'Loading models...'}</option>
-              )}
-            </select>
-          </div>
-
-
-
-
-          <div className="flex justify-end pt-1">
-            <button
-              onClick={saveSettings}
-              className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-medium text-xs cursor-pointer"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Messages Scroll Area */}
       <div 

@@ -36,7 +36,8 @@ class BaseSubAgent:
         messages: List[ChatMessage],
         auth_token: Optional[str] = None,
         openai_client: Optional[AsyncOpenAI] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        api_key_override: Optional[str] = None
     ) -> ChatResponse:
         tools = await self.get_tools()
 
@@ -58,8 +59,10 @@ class BaseSubAgent:
                 tool_executor=self.execute_tool,
                 auth_token=auth_token,
                 openai_client=openai_client,
-                model_override=model
+                model_override=model,
+                api_key_override=api_key_override
             )
+
         except Exception as e:
             logger.error(f"[ReAct Harness Error in {self.name}]: {e}", exc_info=True)
             return ChatResponse(
@@ -191,7 +194,8 @@ class AgentService:
         self,
         messages: List[ChatMessage],
         openai_client: Optional[AsyncOpenAI],
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        api_key_override: Optional[str] = None
     ) -> str:
         """
         Model-driven intent routing: Uses LLM to decide which SubAgent domain should handle the request.
@@ -200,7 +204,7 @@ class AgentService:
             return "TRANSACTION"
 
         router_system_prompt = load_prompt("supervisor_router.md") or (
-            "You are Nova Bank's Supervisor Orchestrator. Classify the user inquiry into exactly ONE domain:\n"
+            "You are Tirenn Bank's Supervisor Orchestrator. Classify the user inquiry into exactly ONE domain:\n"
             "- TRANSACTION: For checking balances, wire transfers, transactions, statements, opening accounts.\n"
             "- IDENTITY: For viewing profile, updating address, and KYC documents.\n"
             "- SECURITY: For card locking/freezing, unfreezing, and daily transfer limits.\n"
@@ -208,6 +212,7 @@ class AgentService:
             "- SUPPORT: For bank policies, fee rules, APY rates, and FAQ search.\n\n"
             "Return ONLY the single uppercase domain word: TRANSACTION, IDENTITY, SECURITY, WEALTH, or SUPPORT."
         )
+
 
         try:
             latest_user_text = messages[-1].content if messages else ""
@@ -220,7 +225,8 @@ class AgentService:
                 openai_client=openai_client,
                 messages=context,
                 temperature=0.0,
-                model_override=model_override
+                model_override=model_override,
+                api_key_override=api_key_override
             )
 
             if choice and choice.content:
@@ -262,23 +268,28 @@ class AgentService:
                 tools_used=cached.get("tools_used") or ["search_bank_faq (redis_semantic_cached)"]
             )
 
-        api_key = api_key_override or settings.OPENROUTER_API_KEY
-        model_name = model_override
+        # 2. Centralized Model Execution Plan & Strict Validation
+        db_models = await model_fallback.fetch_models_from_db()
+        plan = model_fallback.resolve_model_execution_plan(
+            api_key=api_key_override,
+            model_override=model_override,
+            active_db_models=db_models
+        )
+        if plan.error:
+            logger.warning(f"[CHAT VALIDATION ERROR] {plan.error}")
+            return ChatResponse(
+                reply=f"⚠️ Validation Error: {plan.error}",
+                action_type=None,
+                action_data=None,
+                tools_used=[]
+            )
 
-        # Validate selected model from user against active database models
-        if model_name and model_name.strip():
-            db_models = await model_fallback.fetch_models_from_db()
-            if db_models and model_name.strip() not in db_models:
-                return ChatResponse(
-                    reply=f"⚠️ Error: Selected AI model '{model_name.strip()}' is not registered or active in the database. Please select a valid model in settings.",
-                    action_type=None,
-                    action_data=None,
-                    tools_used=[]
-                )
+        api_key = api_key_override or settings.OPENROUTER_API_KEY
+        model_name = plan.models[0] if plan.models else None
 
         if not api_key or not api_key.strip() or api_key == "YOUR_OPENROUTER_API_KEY_HERE":
             return ChatResponse(
-                reply="⚠️ AI Service is offline or OpenRouter API key is not configured. Please configure an API key in settings or verify server environment variables.",
+                reply="⚠️ AI Service is offline or OpenRouter API key is not configured. Please configure an API key in admin settings or verify server environment variables.",
                 action_type=None,
                 action_data=None,
                 tools_used=[]
@@ -294,20 +305,21 @@ class AgentService:
             }
         )
 
-        # 2. LLM Supervisor decides which SubAgent handles the inquiry
-        domain = await self._classify_intent_llm(messages, openai_client, model_name)
+        # 3. LLM Supervisor decides which SubAgent handles the inquiry
+        domain = await self._classify_intent_llm(messages, openai_client, model_name, api_key_override)
 
-        # 3. Delegate to the chosen SubAgent
+        # 4. Delegate to the chosen SubAgent
         if domain == "IDENTITY":
-            return await self.id_agent.run(messages, auth_token, openai_client, model_name)
+            return await self.id_agent.run(messages, auth_token, openai_client, model_name, api_key_override)
         elif domain == "SECURITY":
-            return await self.sec_agent.run(messages, auth_token, openai_client, model_name)
+            return await self.sec_agent.run(messages, auth_token, openai_client, model_name, api_key_override)
         elif domain == "WEALTH":
-            return await self.wlt_agent.run(messages, auth_token, openai_client, model_name)
+            return await self.wlt_agent.run(messages, auth_token, openai_client, model_name, api_key_override)
         elif domain == "SUPPORT":
-            return await self.faq_agent.run(messages, auth_token, openai_client, model_name)
+            return await self.faq_agent.run(messages, auth_token, openai_client, model_name, api_key_override)
         else:
-            return await self.tx_agent.run(messages, auth_token, openai_client, model_name)
+            return await self.tx_agent.run(messages, auth_token, openai_client, model_name, api_key_override)
+
 
 
 agent_service = AgentService()

@@ -2,7 +2,6 @@ import logging
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
 from app.config import settings
-from app.logger import request_id_ctx, trace_id_ctx
 
 logger = logging.getLogger("ai_service.repositories.mcp")
 
@@ -12,6 +11,7 @@ class MCPRepository:
         self.secret = settings.INTERNAL_MCP_SECRET
 
     def _get_headers(self, auth_token: Optional[str] = None) -> Dict[str, str]:
+        from app.logger import request_id_ctx, trace_id_ctx
         headers = {
             "Content-Type": "application/json",
             "X-Internal-MCP-Secret": self.secret,
@@ -28,6 +28,7 @@ class MCPRepository:
             headers["X-Trace-ID"] = trace_id
 
         return headers
+
 
 
     async def list_tools(self, domain: str) -> List[Dict[str, Any]]:

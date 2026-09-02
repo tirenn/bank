@@ -1,4 +1,4 @@
-﻿# Project Context: AURA Core Digital Banking & Nova AI Platform
+﻿# Project Context: Tirenn Core Digital Banking & Nova AI Platform
 
 ## Overview
 A high-performance digital banking system engineered with strict architectural boundaries, comprehensive distributed logging (Grafana Loki format), Redis sliding window rate limiting, GORM & Goose database migrations, and an intelligent Nova AI financial copilot.

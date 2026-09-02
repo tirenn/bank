@@ -141,7 +141,7 @@ export const bankingApi = {
     const res = await coreClient.get('/beneficiaries');
     return res.data;
   },
-  addBeneficiary: async (nickname, accountNumber, bankName = 'AURA Core Bank') => {
+  addBeneficiary: async (nickname, accountNumber, bankName = 'Tirenn Core Bank') => {
     const res = await coreClient.post('/beneficiaries', {
       nickname,
       account_number: accountNumber,
@@ -243,19 +243,8 @@ export const adminModelApi = {
     const res = await coreClient.get('/admin/ai/models');
     return res.data;
   },
-  createModel: async (modelData) => {
-    const res = await coreClient.post('/admin/ai/models', modelData);
-    return res.data;
-  },
-  updateModel: async (id, modelData) => {
-    const res = await coreClient.put(`/admin/ai/models/${id}`, modelData);
-    return res.data;
-  },
-  deleteModel: async (id) => {
-    const res = await coreClient.delete(`/admin/ai/models/${id}`);
-    return res.data;
-  },
 };
+
 
 
 

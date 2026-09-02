@@ -9,7 +9,7 @@ export const Navbar = ({ onOpenAiChat, currentView = 'banking', onViewChange }) 
   return (
     <header className="border-b border-white/[0.08] bg-[#0c0d12]/95 backdrop-blur-md sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        
+
         {/* Brand Logo & Desktop Nav */}
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-3">
@@ -18,7 +18,7 @@ export const Navbar = ({ onOpenAiChat, currentView = 'banking', onViewChange }) 
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-base font-semibold tracking-tight text-white">
-                AURA
+                Tirenn
               </span>
               <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 {isAdmin ? 'ADMIN' : 'CORE'}
@@ -26,25 +26,51 @@ export const Navbar = ({ onOpenAiChat, currentView = 'banking', onViewChange }) 
             </div>
           </div>
 
-          {/* Admin Navigation Indicator (Desktop) */}
+          {/* Admin Navigation Indicator & Switcher (Desktop) */}
           {isAdmin && (
-            <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
-              <Database className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-emerald-400 font-semibold font-mono text-[11px]">RAG Vector Store & AI Console</span>
+            <div className="hidden md:flex items-center space-x-1 p-1 rounded-xl bg-black/40 border border-white/[0.08] text-xs">
+              <button
+                type="button"
+                onClick={() => onViewChange && onViewChange('models')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center space-x-1.5 ${currentView === 'models'
+                    ? 'bg-emerald-500 text-slate-950 font-semibold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                  }`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>AI Models & Routing</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onViewChange && onViewChange('rag')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center space-x-1.5 ${currentView === 'rag'
+                    ? 'bg-emerald-500 text-slate-950 font-semibold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                  }`}
+              >
+                <Database className="h-3.5 w-3.5" />
+                <span>RAG Vector Store</span>
+              </button>
             </div>
           )}
         </div>
 
 
+
         {/* Right Nav actions */}
         <div className="flex items-center space-x-2 sm:space-x-4">
-          <button
-            onClick={onOpenAiChat}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.1] text-slate-200 hover:text-white transition-all text-xs font-medium cursor-pointer"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden xs:inline sm:inline">Nova Copilot</span>
-          </button>
+          {!isAdmin && (
+            <button
+              onClick={onOpenAiChat}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.1] text-slate-200 hover:text-white transition-all text-xs font-medium cursor-pointer"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="hidden xs:inline sm:inline">Tirenn Copilot</span>
+            </button>
+
+          )}
+
 
           {user && (
             <div className="flex items-center space-x-2 sm:space-x-3 sm:pl-3 sm:border-l sm:border-white/[0.08]">
@@ -54,7 +80,7 @@ export const Navbar = ({ onOpenAiChat, currentView = 'banking', onViewChange }) 
                   {user.email}
                 </span>
               </div>
-              
+
               <div className="h-8 w-8 rounded-full bg-white/[0.08] border border-white/[0.12] flex items-center justify-center text-slate-200 font-medium text-xs">
                 {user.full_name ? user.full_name[0].toUpperCase() : 'U'}
               </div>
@@ -102,11 +128,38 @@ export const Navbar = ({ onOpenAiChat, currentView = 'banking', onViewChange }) 
           )}
 
           {isAdmin && (
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400 flex items-center space-x-2">
-              <Database className="h-3.5 w-3.5" />
-              <span>RAG Vector Management Console</span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  onViewChange && onViewChange('models');
+                  setMobileMenuOpen(false);
+                }}
+                className={`p-2.5 rounded-lg border flex items-center justify-center space-x-1.5 font-medium ${currentView === 'models'
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-semibold'
+                    : 'bg-white/[0.04] text-slate-300 border-white/[0.08]'
+                  }`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>AI Models</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onViewChange && onViewChange('rag');
+                  setMobileMenuOpen(false);
+                }}
+                className={`p-2.5 rounded-lg border flex items-center justify-center space-x-1.5 font-medium ${currentView === 'rag'
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-semibold'
+                    : 'bg-white/[0.04] text-slate-300 border-white/[0.08]'
+                  }`}
+              >
+                <Database className="h-3.5 w-3.5" />
+                <span>RAG Store</span>
+              </button>
             </div>
           )}
+
 
         </div>
       )}

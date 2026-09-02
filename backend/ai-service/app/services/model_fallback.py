@@ -39,29 +39,72 @@ async def fetch_models_from_db() -> List[str]:
     return _cached_db_models or []
 
 
+class ModelExecutionPlan:
+    """
+    Centralized execution plan for AI model routing.
+    - is_paid_dedicated=True: Single paid model, NO fallback to free models on error.
+    - is_paid_dedicated=False: Free tier pool, with automatic cascading fallback on limit/429.
+    """
+    def __init__(self, models: List[str], is_paid_dedicated: bool, error: Optional[str] = None):
+        self.models = models
+        self.is_paid_dedicated = is_paid_dedicated
+        self.error = error
+
+
+def resolve_model_execution_plan(
+    api_key: Optional[str] = None,
+    model_override: Optional[str] = None,
+    active_db_models: Optional[List[str]] = None
+) -> ModelExecutionPlan:
+    """
+    CENTRALIZED AI MODEL SELECTION LOGIC:
+    1. If api_key is present AND model_override is empty -> Validation Error.
+    2. If api_key is present AND model_override is present -> Dedicated Paid Mode (Single Model, No Fallback).
+    3. If api_key is empty/nil -> Free Tier Mode (Active DB Pool with Multi-Tier Fallback Cascade).
+    """
+    has_key = bool(api_key and api_key.strip() and api_key.strip() != "YOUR_OPENROUTER_API_KEY_HERE")
+    has_model = bool(model_override and str(model_override).strip())
+
+    # Case 1: Custom API Key is provided, but Model Name is empty -> Validation Error
+    if has_key and not has_model:
+        return ModelExecutionPlan(
+            models=[],
+            is_paid_dedicated=True,
+            error="Model name is required when an OpenRouter API Key is provided. Please select or enter a paid model."
+        )
+
+    # Case 2: Custom API Key is provided WITH Model Name -> Dedicated Paid Mode (Strictly 1 Model, No Fallback)
+    if has_key and has_model:
+        clean_model = str(model_override).strip()
+        logger.info(f"🎯 [DEDICATED PAID MODE] Active model locked to: '{clean_model}' (Fallback Disabled)")
+        return ModelExecutionPlan(
+            models=[clean_model],
+            is_paid_dedicated=True,
+            error=None
+        )
+
+    # Case 3: Free Tier Mode (No Custom Key) -> Sequential Multi-Model Cascading Fallback Queue
+    pool = active_db_models or _cached_db_models or []
+    models_queue: List[str] = []
+
+    if has_model and str(model_override).strip() in pool:
+        models_queue.append(str(model_override).strip())
+
+    for m in pool:
+        if m and m not in models_queue:
+            models_queue.append(m)
+
+    logger.info(f"🔄 [FREE TIER CASCADE MODE] Active model queue: {models_queue} (Fallback Enabled)")
+    return ModelExecutionPlan(
+        models=models_queue,
+        is_paid_dedicated=False,
+        error=None
+    )
+
+
 def resolve_model_sequence(model_override: Optional[Any] = None) -> List[str]:
-    """
-    Builds the sequential fallback array dynamically from DB:
-    1. User-selected override model (if provided as string or list)
-    2. Active database-backed model pool from PostgreSQL
-    """
-    sequence: List[str] = []
-    if model_override:
-        if isinstance(model_override, list):
-            for m in model_override:
-                if isinstance(m, str) and m.strip() and m.strip() not in sequence:
-                    sequence.append(m.strip())
-        elif isinstance(model_override, str) and model_override.strip():
-            sequence.append(model_override.strip())
-
-    source_pool = _cached_db_models
-    for model in source_pool:
-        if isinstance(model, str) and model.strip() and model.strip() not in sequence:
-            sequence.append(model.strip())
-
-    return sequence
-
-
+    plan = resolve_model_execution_plan(api_key=None, model_override=model_override, active_db_models=_cached_db_models)
+    return plan.models
 
 
 # ============================================================================
@@ -74,23 +117,63 @@ async def execute_chat_with_fallback(
     tools: Optional[List[Dict[str, Any]]] = None,
     tool_choice: Optional[str] = None,
     temperature: float = 0.1,
-    model_override: Optional[str] = None
+    model_override: Optional[str] = None,
+    api_key_override: Optional[str] = None
 ) -> Tuple[Optional[Any], Optional[str], Optional[str]]:
     """
     Executes conversational AI completions & tool calling for SubAgents.
-    Sequentially iterates through the free model pool on failure (429, timeout, quota).
+    - If Paid Mode: Executes strictly against the single paid model without fallback.
+    - If Free Mode: Sequentially iterates through the free model pool on failure (429, timeout, quota).
     Returns: (choice_message, successful_model_name, error_message)
     """
-    # Ensure active database model pool is loaded
+    # 1. Ensure active database model pool is loaded
     await fetch_models_from_db()
-    model_queue = resolve_model_sequence(model_override)
-    failure_log: List[str] = []
 
+    # 2. Resolve Centralized Execution Plan
+    plan = resolve_model_execution_plan(
+        api_key=api_key_override,
+        model_override=model_override,
+        active_db_models=_cached_db_models
+    )
+
+    if plan.error:
+        logger.warning(f"[CHAT VALIDATION ERROR] {plan.error}")
+        return None, None, f"⚠️ Validation Error: {plan.error}"
+
+    # 3. Dedicated Paid Mode (Single Model, No Fallback)
+    if plan.is_paid_dedicated:
+        paid_model = plan.models[0]
+        logger.info(f"[CHAT DEDICATED PAID] Executing single-shot completion with '{paid_model}'")
+        try:
+            payload: Dict[str, Any] = {
+                "model": paid_model,
+                "messages": messages,
+                "temperature": temperature,
+            }
+            if tools:
+                payload["tools"] = tools
+                payload["tool_choice"] = tool_choice or "auto"
+
+            response = await openai_client.chat.completions.create(**payload)
+            if response and response.choices and len(response.choices) > 0:
+                choice = response.choices[0].message
+                logger.info(f"[CHAT DEDICATED PAID] Succeeded with model: '{paid_model}'")
+                return choice, paid_model, None
+            else:
+                return None, None, f"⚠️ Error: Model '{paid_model}' returned empty choices from OpenRouter."
+        except Exception as exc:
+            err_msg = str(exc)
+            logger.error(f"[CHAT DEDICATED PAID ERROR] Paid model '{paid_model}' failed: {err_msg}")
+            return None, None, f"⚠️ OpenRouter Error ({paid_model}): {err_msg}"
+
+    # 4. Free Tier Mode (Cascading Multi-Model Fallback Queue)
+    model_queue = plan.models
+    failure_log: List[str] = []
 
     for idx, current_model in enumerate(model_queue):
         try:
             logger.info(
-                f"[CHAT FALLBACK] Trying model tier [{idx + 1}/{len(model_queue)}]: {current_model}"
+                f"[CHAT FREE FALLBACK] Trying model tier [{idx + 1}/{len(model_queue)}]: {current_model}"
             )
             payload: Dict[str, Any] = {
                 "model": current_model,
@@ -104,26 +187,26 @@ async def execute_chat_with_fallback(
             response = await openai_client.chat.completions.create(**payload)
             if response and response.choices and len(response.choices) > 0:
                 choice = response.choices[0].message
-                logger.info(f"[CHAT FALLBACK] Success with model: {current_model}")
+                logger.info(f"[CHAT FREE FALLBACK] Succeeded with model: {current_model}")
                 return choice, current_model, None
             else:
                 failure_log.append(f"[{current_model}] returned empty choices")
         except Exception as exc:
             err_msg = str(exc)
             logger.warning(
-                f"[CHAT FALLBACK] Model '{current_model}' failed: {err_msg}. "
-                f"Cascading to next model tier..."
+                f"[CHAT FREE FALLBACK] Model '{current_model}' failed: {err_msg}. Cascading to next model tier..."
             )
             failure_log.append(f"[{current_model}]: {err_msg}")
 
     logger.error(
-        f"[CHAT FALLBACK] All {len(model_queue)} models exhausted: {'; '.join(failure_log)}"
+        f"[CHAT FREE FALLBACK] All {len(model_queue)} models exhausted: {'; '.join(failure_log)}"
     )
     exhausted_message = (
         "⚠️ Error: All free LLM model quotas have been exhausted across all providers. "
-        "Please try again in a few moments or provide a custom OpenRouter API key in settings."
+        "Please try again in a few moments or provide a custom OpenRouter API key and model name in admin settings."
     )
     return None, None, exhausted_message
+
 
 from app.services.prompt_loader import load_prompt
 
@@ -204,11 +287,14 @@ async def execute_rag_chunking_with_fallback(
 
 class ModelFallbackMechanism:
     fetch_models_from_db = staticmethod(fetch_models_from_db)
+    resolve_model_execution_plan = staticmethod(resolve_model_execution_plan)
     resolve_model_sequence = staticmethod(resolve_model_sequence)
     execute_completion = staticmethod(execute_chat_with_fallback)
     execute_dynamic_chunking = staticmethod(execute_rag_chunking_with_fallback)
+    ModelExecutionPlan = ModelExecutionPlan
 
 
 model_fallback = ModelFallbackMechanism
+
 
 

@@ -1,5 +1,6 @@
-﻿.PHONY: run build test migrate-up migrate-down seed reset-db clean
+.PHONY: run build test migrate-up migrate-down reset-db clean compose-up compose-down compose-restart compose-logs compose-exec
 
+# Local Go Development
 run:
 	go run cmd/api/main.go
 
@@ -19,3 +20,19 @@ reset-db: migrate-down migrate-up
 
 clean:
 	rm -f server.exe server
+
+# Docker Compose Management for bank-core
+compose-up:
+	docker compose -f ../../docker-compose.yml up -d --build bank-core
+
+compose-down:
+	docker compose -f ../../docker-compose.yml stop bank-core
+
+compose-restart:
+	docker compose -f ../../docker-compose.yml restart bank-core
+
+compose-logs:
+	docker compose -f ../../docker-compose.yml logs -f bank-core
+
+compose-exec:
+	docker exec -it bank-core sh

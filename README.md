@@ -1,4 +1,4 @@
-﻿# AURA Digital Banking & AI Assistant Platform
+﻿# Tirenn Digital Banking & AI Assistant Platform
 
 An enterprise-grade Full-Stack Banking Application featuring a high-performance **Go (Golang)** Core Banking backend, a **Python (FastAPI)** AI Microservice with **OpenRouter Free LLM** tool calling and **ChromaDB Vector RAG**, using the unified infrastructure in `Projects/infra` (**PostgreSQL** & **ChromaDB**), and a modern **React (Vite) + Tailwind CSS** banking dashboard.
 

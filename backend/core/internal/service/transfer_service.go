@@ -10,7 +10,6 @@ import (
 	"bank-core/internal/logger"
 )
 
-
 type TransferService struct {
 	txRepo      domain.TransactionRepository
 	accountRepo domain.AccountRepository
@@ -162,20 +161,18 @@ func (s *TransferService) GenerateStatement(ctx context.Context, userID uint64, 
 	statementID := fmt.Sprintf("STM-%d-%04d", now.Unix(), now.Nanosecond()%10000)
 
 	return &domain.StatementResponse{
-		StatementID:          statementID,
-		AccountNumber:        acc.AccountNumber,
-		AccountHolder:        "AURA Client",
-		PeriodStart:          startDate,
-		PeriodEnd:            endDate,
-		StartingBalanceCents: acc.BalanceCents - (totalDeposits - totalWithdrawals),
-		EndingBalanceCents:   acc.BalanceCents,
-		TotalDepositsCents:   totalDeposits,
+		StatementID:           statementID,
+		AccountNumber:         acc.AccountNumber,
+		AccountHolder:         "Tirenn Client",
+		PeriodStart:           startDate,
+		PeriodEnd:             endDate,
+		StartingBalanceCents:  acc.BalanceCents - (totalDeposits - totalWithdrawals),
+		EndingBalanceCents:    acc.BalanceCents,
+		TotalDepositsCents:    totalDeposits,
 		TotalWithdrawalsCents: totalWithdrawals,
 
-		TransactionCount:     len(txs),
-		Transactions:         txs,
-		GeneratedAt:          now,
+		TransactionCount: len(txs),
+		Transactions:     txs,
+		GeneratedAt:      now,
 	}, nil
 }
-
-

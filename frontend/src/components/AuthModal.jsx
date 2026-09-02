@@ -38,14 +38,14 @@ export const AuthModal = () => {
   return (
     <div className="min-h-screen bg-[#08090d] flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-sm bg-[#0f1117] border border-white/[0.08] rounded-2xl p-7 shadow-xl">
-        
+
         {/* Brand header */}
         <div className="text-center space-y-2 mb-6">
           <div className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-white/[0.06] border border-white/[0.1] text-emerald-400 mb-1">
             <Landmark className="h-5 w-5" />
           </div>
           <h1 className="text-lg font-semibold tracking-tight text-white">
-            AURA Core Banking
+            Tirenn Core Banking
           </h1>
           <p className="text-xs text-slate-400 font-mono">
             Secured Terminal Access
@@ -61,9 +61,8 @@ export const AuthModal = () => {
             <button
               type="button"
               onClick={() => setDemoUser('admin@bank.com', 'password123', 'System Administrator')}
-              className={`w-full p-2 rounded-lg border text-left transition-colors cursor-pointer flex items-center justify-between ${
-                email === 'admin@bank.com' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:text-slate-200'
-              }`}
+              className={`w-full p-2 rounded-lg border text-left transition-colors cursor-pointer flex items-center justify-between ${email === 'admin@bank.com' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:text-slate-200'
+                }`}
             >
               <div>
                 <div className="font-medium text-xs text-slate-200">System Administrator</div>
@@ -78,9 +77,8 @@ export const AuthModal = () => {
               <button
                 type="button"
                 onClick={() => setDemoUser('john.doe@bank.com', 'password123', 'John Doe')}
-                className={`p-2 rounded-lg border text-left transition-colors cursor-pointer ${
-                  email === 'john.doe@bank.com' ? 'bg-white/[0.08] border-emerald-500/40 text-slate-100' : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:text-slate-200'
-                }`}
+                className={`p-2 rounded-lg border text-left transition-colors cursor-pointer ${email === 'john.doe@bank.com' ? 'bg-white/[0.08] border-emerald-500/40 text-slate-100' : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:text-slate-200'
+                  }`}
               >
                 <div className="font-medium text-xs text-slate-200">John Doe</div>
                 <div className="text-[10px] text-slate-500 font-mono">$12,540.50 (User)</div>
@@ -88,9 +86,8 @@ export const AuthModal = () => {
               <button
                 type="button"
                 onClick={() => setDemoUser('sarah.smith@bank.com', 'password123', 'Sarah Smith')}
-                className={`p-2 rounded-lg border text-left transition-colors cursor-pointer ${
-                  email === 'sarah.smith@bank.com' ? 'bg-white/[0.08] border-emerald-500/40 text-slate-100' : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:text-slate-200'
-                }`}
+                className={`p-2 rounded-lg border text-left transition-colors cursor-pointer ${email === 'sarah.smith@bank.com' ? 'bg-white/[0.08] border-emerald-500/40 text-slate-100' : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:text-slate-200'
+                  }`}
               >
                 <div className="font-medium text-xs text-slate-200">Sarah Smith</div>
                 <div className="text-[10px] text-slate-500 font-mono">$4,820.00 (User)</div>

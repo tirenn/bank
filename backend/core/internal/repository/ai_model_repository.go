@@ -1,4 +1,4 @@
-﻿package repository
+package repository
 
 import (
 	"context"
@@ -50,26 +50,3 @@ func (r *GormAIModelRepository) GetByModelID(ctx context.Context, modelID string
 	return &model, nil
 }
 
-func (r *GormAIModelRepository) Create(ctx context.Context, m *domain.AIModel) error {
-	if err := r.db.WithContext(ctx).Create(m).Error; err != nil {
-		logger.Error(ctx, "Failed to create AI model", err, map[string]interface{}{"model_id": m.ModelID})
-		return err
-	}
-	return nil
-}
-
-func (r *GormAIModelRepository) Update(ctx context.Context, m *domain.AIModel) error {
-	if err := r.db.WithContext(ctx).Save(m).Error; err != nil {
-		logger.Error(ctx, "Failed to update AI model", err, map[string]interface{}{"id": m.ID})
-		return err
-	}
-	return nil
-}
-
-func (r *GormAIModelRepository) Delete(ctx context.Context, id uint64) error {
-	if err := r.db.WithContext(ctx).Delete(&domain.AIModel{}, id).Error; err != nil {
-		logger.Error(ctx, "Failed to delete AI model", err, map[string]interface{}{"id": id})
-		return err
-	}
-	return nil
-}

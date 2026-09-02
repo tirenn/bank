@@ -7,6 +7,7 @@ import (
 
 	"bank-core/internal/domain"
 	"bank-core/internal/logger"
+
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -67,8 +68,6 @@ func SeedDatabase(db *gorm.DB) error {
 		logger.Info(ctx, "Database already seeded. Skipping other seeders.", map[string]interface{}{"user_count": count})
 		return nil
 	}
-
-
 
 	logger.Info(ctx, "Seeding database with demo users, accounts, and transactions via GORM...")
 
@@ -209,20 +208,19 @@ func SeedDatabase(db *gorm.DB) error {
 		}
 	}
 
-
 	// Saved Beneficiaries for John Doe
 	ben1 := domain.Beneficiary{
 		UserID:        users[0].ID,
 		Nickname:      "Sarah Smith (Rent)",
 		AccountNumber: "ACC-83920194",
-		BankName:      "AURA Core Bank",
+		BankName:      "Tirenn Core Bank",
 		CreatedAt:     time.Now().AddDate(0, -1, 0),
 	}
 	ben2 := domain.Beneficiary{
 		UserID:        users[0].ID,
 		Nickname:      "Alice Johnson (Consulting)",
 		AccountNumber: "ACC-54910283",
-		BankName:      "AURA Core Bank",
+		BankName:      "Tirenn Core Bank",
 		CreatedAt:     time.Now().AddDate(0, -1, 0),
 	}
 	_ = db.WithContext(ctx).Create(&[]domain.Beneficiary{ben1, ben2}).Error
@@ -329,5 +327,3 @@ func SeedAIModels(db *gorm.DB) error {
 	logger.Info(ctx, fmt.Sprintf("Seeded %d AI models into PostgreSQL successfully", len(modelSeeds)))
 	return nil
 }
-
-

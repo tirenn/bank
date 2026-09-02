@@ -114,15 +114,14 @@ func SetupRouter(
 			protected.POST("/beneficiaries", beneficiaryHandler.Add)
 			protected.DELETE("/beneficiaries/:id", beneficiaryHandler.Delete)
 
-			// Admin AI Models Management
+			// Admin AI Models Discovery (Read-Only)
 			protected.GET("/admin/ai/models", aiModelHandler.ListAll)
-			protected.POST("/admin/ai/models", aiModelHandler.Create)
-			protected.PUT("/admin/ai/models/:id", aiModelHandler.Update)
-			protected.DELETE("/admin/ai/models/:id", aiModelHandler.Delete)
+
 		}
 	}
 
 	return router
+
 }
 
 

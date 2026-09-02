@@ -11,10 +11,12 @@ import { TransferModal } from './components/TransferModal';
 import { DepositModal } from './components/DepositModal';
 import { AiAssistant } from './components/AiAssistant';
 import { AdminRagDashboard } from './components/AdminRagDashboard';
-import { Sparkles } from 'lucide-react';
+import { AdminAiModelsDashboard } from './components/AdminAiModelsDashboard';
+import { Sparkles, Database } from 'lucide-react';
 
 function DashboardContent() {
   const { user, isAdmin, loading } = useAuth();
+  const [adminView, setAdminView] = useState('models'); // 'models' | 'rag'
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
@@ -35,7 +37,7 @@ function DashboardContent() {
       <div className="min-h-screen bg-[#08090d] flex items-center justify-center text-slate-500 text-xs font-mono">
         <div className="flex items-center space-x-2">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-          <span>INITIALIZING AURA SECURE TERMINAL...</span>
+          <span>INITIALIZING TIRENN SECURE TERMINAL...</span>
         </div>
       </div>
     );
@@ -49,14 +51,54 @@ function DashboardContent() {
     <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col relative">
       <Navbar
         onOpenAiChat={() => setIsAiChatOpen(true)}
+        currentView={adminView}
+        onViewChange={setAdminView}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-7">
-        
-        {/* VIEW 1: ADMIN RAG DASHBOARD (Admin accounts do not have customer bank accounts) */}
+
+        {/* VIEW 1: ADMIN CONSOLE (AI Models & Routing vs RAG Knowledge Base) */}
         {isAdmin ? (
-          <AdminRagDashboard />
+          <div className="space-y-6">
+            {/* Top Sub-Navigation Switcher for Admin */}
+            <div className="flex items-center justify-between p-1.5 rounded-2xl bg-[#0f1117] border border-white/[0.08]">
+              <div className="flex items-center space-x-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setAdminView('models')}
+                  className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center space-x-2 cursor-pointer ${adminView === 'models'
+                      ? 'bg-emerald-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                    }`}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>AI Models & Routing Console</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAdminView('rag')}
+                  className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center space-x-2 cursor-pointer ${adminView === 'rag'
+                      ? 'bg-emerald-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                    }`}
+                >
+                  <Database className="h-4 w-4" />
+                  <span>RAG Vector Store & Chunks</span>
+                </button>
+              </div>
+
+              <div className="hidden lg:flex items-center space-x-2 pr-3 text-[11px] font-mono text-slate-500">
+                <span>ACTIVE CONSOLE:</span>
+                <span className="text-emerald-400 font-semibold uppercase">{adminView === 'models' ? 'AI MODEL ORCHESTRATION' : 'VECTOR RETRIEVAL'}</span>
+              </div>
+            </div>
+
+            {/* Admin Page Content */}
+            {adminView === 'models' ? <AdminAiModelsDashboard /> : <AdminRagDashboard />}
+          </div>
         ) : (
+
           /* VIEW 2: CUSTOMER BANKING DASHBOARD */
           <>
             {/* Top Header Row */}
@@ -75,8 +117,9 @@ function DashboardContent() {
                 className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-medium w-fit cursor-pointer transition-all"
               >
                 <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Open Nova Financial Assistant</span>
+                <span>Open Tirenn Financial Assistant</span>
               </button>
+
             </div>
 
             {/* Top Section: Account Overview & Quick Actions */}
@@ -127,16 +170,17 @@ function DashboardContent() {
 
       </main>
 
-      {/* Floating Action Button for Nova AI */}
-      {!isAiChatOpen && (
+      {/* Floating Action Button for Tirenn AI (Customer Only) */}
+      {!isAiChatOpen && !isAdmin && (
         <button
           onClick={() => setIsAiChatOpen(true)}
           className="fixed bottom-5 right-5 z-40 px-3.5 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-slate-100 text-xs font-medium shadow-xl hover:scale-[1.02] transition-all flex items-center space-x-2 cursor-pointer backdrop-blur-md"
         >
           <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Nova Copilot</span>
+          <span>Tirenn Copilot</span>
         </button>
       )}
+
 
       {/* Customer Modals (Only applicable for non-admin customer roles) */}
       {!isAdmin && (
