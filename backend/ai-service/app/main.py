@@ -21,8 +21,8 @@ rate_limiter = RedisSlidingWindowRateLimiter(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_logger(service_name="bank-ai", environment=settings.ENVIRONMENT)
     app_logger.info("Initializing ChromaDB FAQ Knowledge Base, Redis rate limiter, Redis RAG cache, and Conversation History...")
+
     await rate_limiter.connect()
     await rag_cache_service.connect()
     await chat_history_service.connect()

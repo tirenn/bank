@@ -6,15 +6,41 @@ from app.domain.schemas import ChatMessage, ChatResponse
 from app.services.model_fallback import model_fallback
 from app.services.pii_redactor import redact_text, redact_data
 
-logger = logging.getLogger("ai_service.react_harness")
+from app.logger import app_logger as logger
+
+
+
+def _format_context_for_log(context: List[Dict[str, Any]]) -> str:
+    """Helper to format conversation context for clear inspection in logs."""
+    formatted_turns = []
+    for idx, msg in enumerate(context, 1):
+        role = msg.get("role", "unknown").upper()
+        content = msg.get("content")
+        tool_calls = msg.get("tool_calls")
+        tool_name = msg.get("name")
+        
+        turn_str = f"  [{idx}] Role: {role}"
+        if tool_name:
+            turn_str += f" (Tool: {tool_name})"
+        if content:
+            # Truncate very long content in multi-turn context display for readability
+            preview = content if len(str(content)) <= 300 else f"{str(content)[:300]}... [truncated {len(str(content))} chars]"
+            turn_str += f"\n      Content: {preview}"
+        if tool_calls:
+            calls_preview = [f"{tc.get('function', {}).get('name')}({tc.get('function', {}).get('arguments')})" for tc in tool_calls]
+            turn_str += f"\n      Tool Calls: {', '.join(calls_preview)}"
+        formatted_turns.append(turn_str)
+    return "\n".join(formatted_turns)
+
 
 class ReActLoopHarness:
     """
     Native ReAct (Reasoning + Acting) Loop Harness.
     Executes a multi-turn Thought -> Action (Tool Call) -> Observation (Tool Output) -> Thought cycle
-    without third-party graph framework dependencies.
+    with comprehensive telemetry and structured logging.
 
     Key Features:
+    - Detailed Iteration & Context Logging: Full trace of messages sent to LLM, model choice, tool calls, and observations.
     - Iteration Guard: Prevents infinite loops via max_iterations (default 5).
     - Message History Accumulator: Feeds tool outputs (Observations) back to LLM context for multi-step reasoning.
     - Multi-Tool Chaining: Allows LLM to perform sequential operations (e.g. Check Balance -> Draft Transfer -> Calculate Fee).
@@ -37,7 +63,7 @@ class ReActLoopHarness:
         api_key_override: Optional[str] = None
     ) -> ChatResponse:
         """
-        Runs the ReAct reasoning loop.
+        Runs the ReAct reasoning loop with full execution logging.
         """
         if not openai_client or not tools:
             raise ValueError("OpenAI client and tools are required for ReAct loop execution.")
@@ -55,10 +81,20 @@ class ReActLoopHarness:
         last_action_data: Optional[Dict[str, Any]] = None
         observations_summary: List[str] = []
 
-        logger.info(f"[ReAct Harness] Starting reasoning loop (Max Iterations: {self.max_iterations})")
+        logger.info(
+            f"\n"
+            f"╔═══════════════════════════════════════════════════════════════════════╗\n"
+            f"║ 🤖 [ReAct Loop] Starting Reasoning Session (Max Steps: {self.max_iterations})         ║\n"
+            f"╚═══════════════════════════════════════════════════════════════════════╝"
+        )
 
         for iteration in range(1, self.max_iterations + 1):
-            logger.info(f"[ReAct Harness] Iteration step [{iteration}/{self.max_iterations}]")
+            logger.info(
+                f"\n--- [ReAct Step {iteration}/{self.max_iterations}] Preparing LLM Completion ---\n"
+                f"📥 [Context Sent to Model ({len(conversation_context)} turns)]:\n"
+                f"{_format_context_for_log(conversation_context)}\n"
+                f"🛠️ [Available Tools ({len(tools)})]: {[t.get('function', {}).get('name') for t in tools]}"
+            )
 
             choice, successful_model, err_msg = await model_fallback.execute_completion(
                 openai_client=openai_client,
@@ -70,10 +106,9 @@ class ReActLoopHarness:
                 api_key_override=api_key_override
             )
 
-
             # Handle quota limit / fatal failure across all models
             if err_msg and not choice:
-                logger.error(f"[ReAct Harness] Model pool failed on iteration {iteration}: {err_msg}")
+                logger.error(f"❌ [ReAct Step {iteration}] Model pool failed: {err_msg}")
                 return ChatResponse(
                     reply=err_msg,
                     action_type=last_action_type,
@@ -82,6 +117,7 @@ class ReActLoopHarness:
                 )
 
             if not choice:
+                logger.warning(f"⚠️ [ReAct Step {iteration}] Empty choice returned from model.")
                 break
 
             # ----------------------------------------------------------------
@@ -89,7 +125,9 @@ class ReActLoopHarness:
             # ----------------------------------------------------------------
             if choice.tool_calls and len(choice.tool_calls) > 0:
                 logger.info(
-                    f"[ReAct Harness] Thought: Calling {len(choice.tool_calls)} tool(s) via model {successful_model}"
+                    f"\n🤖 [Model Response (Iteration {iteration})] (Model: {successful_model}):\n"
+                    f"   • Thought / Content: {choice.content or '(None - Direct Tool Call)'}\n"
+                    f"   • Tool Calls Count: {len(choice.tool_calls)}"
                 )
 
                 # Append assistant message with tool calls to context
@@ -116,15 +154,27 @@ class ReActLoopHarness:
                     try:
                         t_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
                     except Exception as json_err:
-                        logger.warning(f"[ReAct Harness] Failed to parse tool arguments: {json_err}")
+                        logger.warning(f"⚠️ [ReAct Step {iteration}] Failed to parse tool arguments: {json_err}")
                         t_args = {}
 
-                    logger.info(f"[ReAct Harness] Executing Action: {t_name}({t_args})")
+                    logger.info(
+                        f"\n⚡ [Tool Execution Invoked (Iteration {iteration})]:\n"
+                        f"   • Tool Name: {t_name}\n"
+                        f"   • Arguments: {json.dumps(t_args, indent=2)}"
+                    )
                     tools_used_history.append(t_name)
 
                     # Execute tool via MCP
                     obs_text, act_type, act_data = await tool_executor(t_name, t_args, auth_token)
                     observations_summary.append(obs_text)
+
+                    logger.info(
+                        f"\n📋 [Tool Response / Observation (Iteration {iteration})]:\n"
+                        f"   • Tool: {t_name}\n"
+                        f"   • Observation Result: {obs_text}\n"
+                        f"   • Action Type: {act_type or '(None)'}\n"
+                        f"   • Action Data: {json.dumps(act_data) if act_data else '(None)'}"
+                    )
 
                     if act_type:
                         last_action_type = act_type
@@ -145,7 +195,12 @@ class ReActLoopHarness:
             # SCENARIO B: LLM provided Final Thought / Answer (NO MORE TOOLS)
             # ----------------------------------------------------------------
             final_content = (choice.content or "").strip()
-            logger.info(f"[ReAct Harness] Final Answer reached on iteration {iteration}.")
+            logger.info(
+                f"\n🏁 [ReAct Final Answer (Iteration {iteration})] (Model: {successful_model}):\n"
+                f"   • Reply: {final_content}\n"
+                f"   • Total Tools Used: {tools_used_history}\n"
+                f"   • Action Emitted: {last_action_type or '(None)'}"
+            )
 
             return ChatResponse(
                 reply=final_content,
@@ -155,7 +210,7 @@ class ReActLoopHarness:
             )
 
         # Iteration limit reached: Synthesize gathered observations
-        logger.warning(f"[ReAct Harness] Reached max iterations ({self.max_iterations}). Synthesizing collected observations.")
+        logger.warning(f"⚠️ [ReAct Harness] Reached max iterations ({self.max_iterations}). Synthesizing collected observations.")
         fallback_reply = "\n\n".join(observations_summary) if observations_summary else "I have completed processing your request."
         
         return ChatResponse(

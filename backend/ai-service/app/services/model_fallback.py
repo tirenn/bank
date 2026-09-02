@@ -7,7 +7,8 @@ from app.config import settings
 import httpx
 import time
 
-logger = logging.getLogger("ai_service.model_fallback")
+from app.logger import app_logger as logger
+
 
 _cached_db_models: List[str] = []
 _last_fetch_time: float = 0.0

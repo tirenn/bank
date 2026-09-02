@@ -5,8 +5,10 @@ from app.services.model_fallback import model_fallback, fetch_models_from_db
 from app.services.chat_history_service import chat_history_service
 
 from app.api.dependencies import extract_user_from_token
+from app.logger import app_logger as logger
 
 router = APIRouter(prefix="/ai", tags=["AI Assistant"])
+
 
 
 @router.get("/models")
@@ -33,6 +35,8 @@ async def chat(
     token = authorization.split(" ")[1]
     user_payload = extract_user_from_token(token)
     user_id = str(user_payload.get("user_id", user_payload.get("email", "default_user")))
+    logger.info(f"📨 [Incoming Chat Request] User ID: {user_id} | Messages count: {len(req.messages)}")
+
 
     # 1. Centralized Model & API Key Validation
     active_models = await fetch_models_from_db()

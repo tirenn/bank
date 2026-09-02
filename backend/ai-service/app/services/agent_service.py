@@ -12,7 +12,8 @@ from app.services.react_harness import react_harness
 from app.services.prompt_loader import load_prompt
 from app.services.rag_cache_service import rag_cache_service
 
-logger = logging.getLogger("ai_service.services.agent")
+from app.logger import app_logger as logger
+
 
 
 class BaseSubAgent:

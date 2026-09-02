@@ -1,7 +1,6 @@
 import json
 import logging
 import sys
-import time
 from datetime import datetime, timezone
 from contextvars import ContextVar
 from typing import Any, Dict, Optional
@@ -18,7 +17,6 @@ class StructuredJsonFormatter(logging.Formatter):
         self.environment = environment
 
     def format(self, record: logging.LogRecord) -> str:
-        # PII Redacted log object
         log_obj: Dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
@@ -45,15 +43,20 @@ class StructuredJsonFormatter(logging.Formatter):
         return json.dumps(log_obj)
 
 
-def setup_logger(service_name: str = "bank-ai", environment: str = "development") -> logging.Logger:
+def create_app_logger(service_name: str = "bank-ai", environment: str = "development") -> logging.Logger:
     logger = logging.getLogger("bank_ai")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(StructuredJsonFormatter(service_name=service_name, environment=environment))
+    handler.setLevel(logging.INFO)
+
     logger.addHandler(handler)
     logger.propagate = False
     return logger
 
-app_logger = setup_logger()
+app_logger = create_app_logger()
+
+def setup_logger(service_name: str = "bank-ai", environment: str = "development") -> logging.Logger:
+    return create_app_logger(service_name, environment)
