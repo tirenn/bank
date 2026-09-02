@@ -15,21 +15,11 @@ import { Sparkles } from 'lucide-react';
 
 function DashboardContent() {
   const { user, isAdmin, loading } = useAuth();
-  const [currentView, setCurrentView] = useState('banking'); // 'banking' | 'admin'
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [aiExternalPrompt, setAiExternalPrompt] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // If user changes to admin, default view can stay banking or admin
-  useEffect(() => {
-    if (isAdmin && user?.email === 'admin@bank.com') {
-      setCurrentView('admin');
-    } else {
-      setCurrentView('banking');
-    }
-  }, [isAdmin, user?.email]);
 
   const handleTriggerRefresh = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -59,14 +49,12 @@ function DashboardContent() {
     <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col relative">
       <Navbar
         onOpenAiChat={() => setIsAiChatOpen(true)}
-        currentView={currentView}
-        onViewChange={(view) => setCurrentView(view)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-7">
         
-        {/* VIEW 1: ADMIN RAG DASHBOARD */}
-        {isAdmin && currentView === 'admin' ? (
+        {/* VIEW 1: ADMIN RAG DASHBOARD (Admin accounts do not have customer bank accounts) */}
+        {isAdmin ? (
           <AdminRagDashboard />
         ) : (
           /* VIEW 2: CUSTOMER BANKING DASHBOARD */
@@ -150,18 +138,22 @@ function DashboardContent() {
         </button>
       )}
 
-      {/* Modals & AI Chat Drawer */}
-      <TransferModal
-        isOpen={isTransferOpen}
-        onClose={() => setIsTransferOpen(false)}
-        onSuccess={handleTriggerRefresh}
-      />
+      {/* Customer Modals (Only applicable for non-admin customer roles) */}
+      {!isAdmin && (
+        <>
+          <TransferModal
+            isOpen={isTransferOpen}
+            onClose={() => setIsTransferOpen(false)}
+            onSuccess={handleTriggerRefresh}
+          />
 
-      <DepositModal
-        isOpen={isDepositOpen}
-        onClose={() => setIsDepositOpen(false)}
-        onSuccess={handleTriggerRefresh}
-      />
+          <DepositModal
+            isOpen={isDepositOpen}
+            onClose={() => setIsDepositOpen(false)}
+            onSuccess={handleTriggerRefresh}
+          />
+        </>
+      )}
 
       <AiAssistant
         isOpen={isAiChatOpen}
@@ -175,6 +167,7 @@ function DashboardContent() {
     </div>
   );
 }
+
 
 export default function App() {
   return (

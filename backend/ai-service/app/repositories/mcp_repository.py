@@ -2,6 +2,7 @@ import logging
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
 from app.config import settings
+from app.logger import request_id_ctx, trace_id_ctx
 
 logger = logging.getLogger("ai_service.repositories.mcp")
 
@@ -17,7 +18,17 @@ class MCPRepository:
         }
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}" if not auth_token.startswith("Bearer ") else auth_token
+
+        req_id = request_id_ctx.get()
+        if req_id:
+            headers["X-Request-ID"] = req_id
+
+        trace_id = trace_id_ctx.get()
+        if trace_id:
+            headers["X-Trace-ID"] = trace_id
+
         return headers
+
 
     async def list_tools(self, domain: str) -> List[Dict[str, Any]]:
         """

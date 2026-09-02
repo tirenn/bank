@@ -1,22 +1,27 @@
 import os
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 load_dotenv()
 
-class Settings(BaseModel):
-    PORT: int = int(os.getenv("PORT", "8005"))
-    CORE_BANKING_URL: str = os.getenv("CORE_BANKING_URL", "http://localhost:8085")
-    INTERNAL_MCP_SECRET: str = os.getenv("INTERNAL_MCP_SECRET", "nova-internal-mcp-secret-key-392810")
-    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 
-    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
-    OPENROUTER_FALLBACK_MODEL: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "google/gemini-2.0-flash-exp:free")
-    CHROMA_HOST: str = os.getenv("CHROMA_HOST", "localhost")
-    CHROMA_PORT: int = int(os.getenv("CHROMA_PORT", "8002"))
-    CHROMA_COLLECTION: str = os.getenv("CHROMA_COLLECTION", "bank_faq_kb")
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+class Settings(BaseModel):
+    PORT: int = Field(default_factory=lambda: int(os.getenv("PORT", "8005")))
+    CORE_BANKING_URL: str = Field(default_factory=lambda: os.getenv("CORE_BANKING_URL", "http://bank-core:8085"))
+    INTERNAL_MCP_SECRET: str = Field(default_factory=lambda: os.getenv("INTERNAL_MCP_SECRET", ""))
+    OPENROUTER_API_KEY: str = Field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
+
+    CHROMA_HOST: str = Field(default_factory=lambda: os.getenv("CHROMA_HOST", "chromadb"))
+    CHROMA_PORT: int = Field(default_factory=lambda: int(os.getenv("CHROMA_PORT", "8000")))
+    CHROMA_COLLECTION: str = Field(default_factory=lambda: os.getenv("CHROMA_COLLECTION", "bank_faq_kb"))
+    REDIS_URL: str = Field(default_factory=lambda: os.getenv("REDIS_URL", "redis://redis:6379/0"))
+    RAG_CACHE_TTL: int = Field(default_factory=lambda: int(os.getenv("RAG_CACHE_TTL", "86400")))
+    ENVIRONMENT: str = Field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
+
 
 settings = Settings()
+
+
+
+
 

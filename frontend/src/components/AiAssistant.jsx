@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot, User, Settings, ArrowRight, CheckCircle2, RefreshCw, Key, ShieldCheck } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { X, Send, Bot, User, Settings, ArrowRight, CheckCircle2, RefreshCw, Key, ShieldCheck, RotateCcw, Copy, Check } from 'lucide-react';
 import { aiAssistantApi, bankingApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { copyToClipboard } from '../utils/clipboard';
+
+
+
 
 export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt }) => {
   const { user, refreshAccount } = useAuth();
@@ -13,23 +19,69 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState(localStorage.getItem('openrouter_key') || '');
-  const [model, setModel] = useState(localStorage.getItem('openrouter_model') || 'meta-llama/llama-3.3-70b-instruct:free');
+  const [model, setModel] = useState(localStorage.getItem('openrouter_model') || '');
+  const [availableModels, setAvailableModels] = useState([]);
   const [executingTransfer, setExecutingTransfer] = useState(false);
+  const [copiedMessageIdx, setCopiedMessageIdx] = useState(null);
+
   const [transferStatus, setTransferStatus] = useState({});
 
   const messagesEndRef = useRef(null);
 
+
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const data = await aiAssistantApi.getAvailableModels();
+        if (data?.models && data.models.length > 0) {
+          setAvailableModels(data.models);
+          const savedModel = localStorage.getItem('openrouter_model');
+          if (!savedModel || !data.models.includes(savedModel)) {
+            const chosen = data.default_model || data.models[0];
+            setModel(chosen);
+            localStorage.setItem('openrouter_model', chosen);
+          } else {
+            setModel(savedModel);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load dynamic model list from backend:', err);
+      }
+    };
+    fetchModels();
+  }, []);
+
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
 
   useEffect(() => {
     if (externalPrompt) {
       handleSend(externalPrompt);
     }
   }, [externalPrompt]);
+
+  // Lock background body scroll and touch chaining when chat window is open on mobile
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalTouchAction = document.body.style.touchAction;
+
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.touchAction = originalTouchAction;
+      };
+    }
+  }, [isOpen]);
+
 
   const handleSend = async (userText) => {
     const textToSend = (userText || input).trim();
@@ -61,17 +113,19 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
 
     } catch (err) {
       console.error('AI Chat Error:', err);
+      const serverDetail = err.response?.data?.detail || err.response?.data?.error || err.message;
       setMessages([
         ...newMessages,
         {
           role: 'assistant',
-          content: 'Unable to reach Nova AI microservice. Ensure Python backend is active.',
+          content: `⚠️ **AI Service Notice:** ${serverDetail || 'Unable to reach Nova AI microservice. Ensure Python backend is active.'}`,
         },
       ]);
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleConfirmTransfer = async (draft, msgIndex) => {
     setExecutingTransfer(true);
@@ -113,9 +167,28 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
     setShowSettings(false);
   };
 
+  const handleResetSession = async () => {
+    if (resetting || loading) return;
+    setResetting(true);
+    try {
+      await aiAssistantApi.resetSession();
+      setMessages([
+        {
+          role: 'assistant',
+          content: `🔄 **Conversation Context Cleared**\n\nHello ${user?.full_name?.split(' ')[0] || 'there'}. I am **Nova**, your financial intelligence co-pilot. How can I assist you today?`,
+        },
+      ]);
+      setTransferStatus({});
+    } catch (err) {
+      console.error('Failed to reset AI conversation session:', err);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const quickChips = [
     'Check my balance',
-    'Buka rekening tabungan baru (Vacation Savings)',
+    'Open a new savings account (Vacation Savings)',
     'Show all my bank accounts',
     'Freeze my debit card',
     'Convert $500 USD to IDR',
@@ -131,28 +204,44 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
 
 
 
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-x-2 bottom-2 sm:inset-auto sm:bottom-4 sm:right-4 z-50 w-auto sm:w-[460px] h-[calc(100vh-1rem)] sm:h-[660px] max-h-[92vh] bg-[#0c0d12] border border-white/[0.12] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn">
-      
-      {/* Header */}
+    <>
+      {/* Mobile Backdrop to prevent background touches and dismiss chat on tap outside */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm sm:hidden transition-opacity"
+      />
 
-      <div className="p-4 bg-[#11131a] border-b border-white/[0.08] flex items-center justify-between">
-        <div className="flex items-center space-x-2.5">
-          <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <Bot className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-1.5">
-              <h3 className="font-semibold text-xs text-white">Nova Financial Intelligence</h3>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+      <div className="fixed inset-x-0 bottom-0 top-0 sm:top-auto sm:inset-auto sm:bottom-4 sm:right-4 z-50 w-full sm:w-[460px] h-[100dvh] sm:h-[660px] sm:max-h-[90vh] bg-[#0c0d12] border-t sm:border border-white/[0.12] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden overscroll-contain animate-fadeIn">
+        
+        {/* Header */}
+        <div className="p-4 bg-[#11131a] border-b border-white/[0.08] flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center space-x-2.5">
+            <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <Bot className="h-4 w-4" />
             </div>
-            <p className="text-[10px] text-slate-500 font-mono">Tool calling • ChromaDB vector RAG</p>
+            <div>
+              <div className="flex items-center space-x-1.5">
+                <h3 className="font-semibold text-xs text-white">Nova Financial Intelligence</h3>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              </div>
+              <p className="text-[10px] text-slate-500 font-mono">Tool calling • ChromaDB vector RAG</p>
+            </div>
           </div>
-        </div>
+
 
         <div className="flex items-center space-x-1">
+          <button
+            onClick={handleResetSession}
+            disabled={resetting || loading}
+            className={`p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors ${resetting ? 'animate-spin text-rose-400' : ''}`}
+            title="Reset Conversation (Clear Redis History)"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className={`p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-colors ${showSettings ? 'bg-white/[0.08] text-emerald-400' : ''}`}
@@ -168,6 +257,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
           </button>
         </div>
       </div>
+
 
       {/* Settings Overlay */}
       {showSettings && (
@@ -191,18 +281,26 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-400 mb-1">Model</label>
+            <label className="block text-[11px] text-slate-400 mb-1">Model (Loaded from Backend)</label>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
               className="w-full px-3 py-1.5 bg-black/60 border border-white/[0.08] rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500/60 text-xs font-mono"
             >
-              <option value="meta-llama/llama-3.3-70b-instruct:free">meta-llama/llama-3.3-70b-instruct:free</option>
-              <option value="google/gemini-2.0-flash-exp:free">google/gemini-2.0-flash-exp:free</option>
-              <option value="mistralai/mistral-7b-instruct:free">mistralai/mistral-7b-instruct:free</option>
-              <option value="qwen/qwen-2.5-72b-instruct:free">qwen/qwen-2.5-72b-instruct:free</option>
+              {availableModels.length > 0 ? (
+                availableModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))
+              ) : (
+                <option value={model}>{model || 'Loading models...'}</option>
+              )}
             </select>
           </div>
+
+
+
 
           <div className="flex justify-end pt-1">
             <button
@@ -216,7 +314,11 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
       )}
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+      <div 
+        className="flex-1 overflow-y-auto p-4 space-y-3.5 overscroll-y-contain touch-pan-y"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+
         {messages.map((msg, idx) => {
           const isUser = msg.role === 'user';
           return (
@@ -235,12 +337,108 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
                 <div
                   className={`p-3.5 rounded-xl text-xs leading-relaxed ${
                     isUser
-                      ? 'bg-emerald-500 text-slate-950 font-medium'
-                      : 'bg-[#14161f] text-slate-200 border border-white/[0.06] whitespace-pre-wrap'
+                      ? 'bg-emerald-500 text-slate-950 font-medium whitespace-pre-wrap'
+                      : 'bg-[#14161f] text-slate-200 border border-white/[0.06]'
                   }`}
                 >
-                  {msg.content}
+                  {isUser ? (
+                    msg.content
+                  ) : (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ node, ...props }) => (
+                          <div className="my-2.5 overflow-x-auto rounded-lg border border-white/[0.08] bg-black/40">
+                            <table className="w-full text-left border-collapse text-[11px] font-mono" {...props} />
+                          </div>
+                        ),
+                        thead: ({ node, ...props }) => (
+                          <thead className="bg-white/[0.06] text-slate-200 border-b border-white/[0.08]" {...props} />
+                        ),
+                        tbody: ({ node, ...props }) => (
+                          <tbody className="divide-y divide-white/[0.04]" {...props} />
+                        ),
+                        tr: ({ node, ...props }) => (
+                          <tr className="hover:bg-white/[0.02] transition-colors" {...props} />
+                        ),
+                        th: ({ node, ...props }) => (
+                          <th className="p-2 font-semibold text-emerald-400 text-[10px] uppercase tracking-wider" {...props} />
+                        ),
+                        td: ({ node, ...props }) => (
+                          <td className="p-2 text-slate-300" {...props} />
+                        ),
+                        strong: ({ node, ...props }) => (
+                          <strong className="font-bold text-white" {...props} />
+                        ),
+                        em: ({ node, ...props }) => (
+                          <em className="italic text-slate-200" {...props} />
+                        ),
+                        p: ({ node, ...props }) => (
+                          <p className="mb-2 last:mb-0 leading-relaxed" {...props} />
+                        ),
+                        ul: ({ node, ...props }) => (
+                          <ul className="list-disc list-inside space-y-1 my-1.5 text-slate-300" {...props} />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol className="list-decimal list-inside space-y-1 my-1.5 text-slate-300" {...props} />
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li className="text-slate-300" {...props} />
+                        ),
+                        code: ({ node, inline, ...props }) => (
+                          <code
+                            className="px-1.5 py-0.5 rounded bg-black/50 text-emerald-400 font-mono text-[11px] border border-white/[0.06]"
+                            {...props}
+                          />
+                        ),
+                        pre: ({ node, ...props }) => (
+                          <pre
+                            className="p-2.5 rounded-lg bg-black/60 border border-white/[0.08] overflow-x-auto my-2 text-[11px] font-mono text-emerald-300"
+                            {...props}
+                          />
+                        ),
+                        blockquote: ({ node, ...props }) => (
+                          <blockquote
+                            className="border-l-2 border-emerald-500/60 pl-2.5 my-2 text-slate-400 italic"
+                            {...props}
+                          />
+                        ),
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+
+                  )}
+
+                  {!isUser && (
+                    <div className="flex items-center justify-end pt-1.5 mt-1 border-t border-white/[0.04]">
+                      <button
+                        onClick={async () => {
+                          const ok = await copyToClipboard(msg.content);
+                          if (ok) {
+                            setCopiedMessageIdx(idx);
+                            setTimeout(() => setCopiedMessageIdx(null), 2000);
+                          }
+                        }}
+                        className="text-[10px] text-slate-500 hover:text-slate-300 flex items-center space-x-1 transition-colors cursor-pointer"
+                        title="Copy message"
+                      >
+                        {copiedMessageIdx === idx ? (
+                          <>
+                            <Check className="h-3 w-3 text-emerald-400" />
+                            <span className="text-emerald-400 text-[10px]">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
+
 
                 {/* Tool Tracing Pills */}
                 {msg.tools_used && msg.tools_used.length > 0 && (
@@ -273,8 +471,15 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
                         <span className="text-slate-400 text-[9px] uppercase tracking-wider">{msg.action_data.card_brand} DEBIT</span>
                         <span className="text-emerald-400 font-bold">{msg.action_data.status}</span>
                       </div>
-                      <div className="text-sm tracking-widest text-slate-100 font-semibold">
-                        {msg.action_data.card_number}
+                      <div className="flex items-center justify-between text-sm tracking-widest text-slate-100 font-semibold">
+                        <span>{msg.action_data.card_number}</span>
+                        <button
+                          onClick={() => copyToClipboard(msg.action_data.card_number)}
+                          className="p-1 rounded text-slate-400 hover:text-white cursor-pointer"
+                          title="Copy card number"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/[0.06]">
                         <span>Exp: <strong className="text-slate-200">{msg.action_data.card_expiry}</strong></span>
@@ -289,6 +494,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
                     </div>
                   </div>
                 )}
+
 
                 {/* All Accounts Summary Card */}
                 {msg.action_type === 'SHOW_ACCOUNTS' && msg.action_data && (
@@ -525,7 +731,10 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
       </div>
 
       {/* Suggested Prompt Chips */}
-      <div className="px-3 py-2 border-t border-white/[0.06] bg-black/40 overflow-x-auto no-scrollbar flex items-center space-x-1.5">
+      <div 
+        className="px-3 py-2 border-t border-white/[0.06] bg-black/40 overflow-x-auto overscroll-x-contain touch-pan-x flex-shrink-0 flex items-center space-x-1.5"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         {quickChips.map((chip, i) => (
           <button
             key={i}
@@ -538,7 +747,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
       </div>
 
       {/* Input bar */}
-      <div className="p-3 bg-[#11131a] border-t border-white/[0.08]">
+      <div className="p-3 bg-[#11131a] border-t border-white/[0.08] flex-shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -564,5 +773,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
       </div>
 
     </div>
+    </>
   );
 };
+

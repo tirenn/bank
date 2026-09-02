@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Copy, Check, ArrowUpRight, Plus, CreditCard, ShieldCheck, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { copyToClipboard } from '../utils/clipboard';
 
 export const AccountCard = ({ onTransferClick, onDepositClick }) => {
   const { user, account, accounts, selectAccount } = useAuth();
@@ -25,17 +26,22 @@ export const AccountCard = ({ onTransferClick, onDepositClick }) => {
     ? `${rawCardNumber.slice(0, 4)} •••• •••• ${rawCardNumber.slice(-4)}`
     : rawCardNumber;
 
-  const copyAccToClipboard = () => {
-    navigator.clipboard.writeText(accNumber);
-    setCopiedAcc(true);
-    setTimeout(() => setCopiedAcc(false), 2000);
+  const copyAccToClipboard = async () => {
+    const success = await copyToClipboard(accNumber);
+    if (success) {
+      setCopiedAcc(true);
+      setTimeout(() => setCopiedAcc(false), 2000);
+    }
   };
 
-  const copyCardToClipboard = () => {
-    navigator.clipboard.writeText(rawCardNumber.replace(/\s+/g, ''));
-    setCopiedCard(true);
-    setTimeout(() => setCopiedCard(false), 2000);
+  const copyCardToClipboard = async () => {
+    const success = await copyToClipboard(rawCardNumber.replace(/\s+/g, ''));
+    if (success) {
+      setCopiedCard(true);
+      setTimeout(() => setCopiedCard(false), 2000);
+    }
   };
+
 
   return (
     <div className="rounded-2xl bg-[#0f1117] border border-white/[0.08] p-6 sm:p-7 shadow-lg flex flex-col justify-between h-full space-y-5">

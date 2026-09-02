@@ -23,11 +23,13 @@ func SetupRouter(
 	beneficiaryHandler *handler.BeneficiaryHandler,
 	forexHandler *handler.ForexHandler,
 	loanHandler *handler.LoanHandler,
+	aiModelHandler *handler.AIModelHandler,
 	txMCPServer *mcp.TransactionMCPServer,
 	idMCPServer *mcp.IdentityMCPServer,
 	secMCPServer *mcp.SecurityMCPServer,
 	wltMCPServer *mcp.WealthMCPServer,
 ) *gin.Engine {
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
@@ -79,9 +81,10 @@ func SetupRouter(
 			auth.POST("/login", authHandler.Login)
 		}
 
-		// Public Calculators
+		// Public Calculators & AI Model Discovery
 		v1.POST("/forex/convert", forexHandler.Convert)
 		v1.POST("/loans/calculate", loanHandler.Calculate)
+		v1.GET("/ai/models", aiModelHandler.GetActiveModels)
 
 		// Protected Domain Endpoints
 		protected := v1.Group("")
@@ -101,7 +104,6 @@ func SetupRouter(
 			protected.POST("/accounts/statements", transferHandler.GenerateStatement)
 			protected.GET("/accounts/statements", transferHandler.GenerateStatement)
 
-
 			protected.POST("/transfers", transferHandler.Transfer)
 			protected.POST("/transfers/deposit", transferHandler.Deposit)
 			protected.GET("/transactions", transferHandler.GetTransactions)
@@ -111,10 +113,17 @@ func SetupRouter(
 			protected.GET("/beneficiaries", beneficiaryHandler.List)
 			protected.POST("/beneficiaries", beneficiaryHandler.Add)
 			protected.DELETE("/beneficiaries/:id", beneficiaryHandler.Delete)
+
+			// Admin AI Models Management
+			protected.GET("/admin/ai/models", aiModelHandler.ListAll)
+			protected.POST("/admin/ai/models", aiModelHandler.Create)
+			protected.PUT("/admin/ai/models/:id", aiModelHandler.Update)
+			protected.DELETE("/admin/ai/models/:id", aiModelHandler.Delete)
 		}
 	}
 
 	return router
 }
+
 
 

@@ -31,14 +31,14 @@ async def upload_faq_document(
         raise HTTPException(status_code=400, detail="Topic and content cannot be empty.")
     
     try:
-        res = faq_service.ingest_text_atomic(
+        res = await faq_service.ingest_text_atomic(
             topic=req.topic.strip(),
             content=req.content.strip(),
             chunk_size=req.chunk_size or 500,
             overlap=req.overlap or 100
         )
         return AtomicIngestResponse(
-            message=f"Successfully indexed document with {res['total_chunks']} chunks in parallel.",
+            message=f"Successfully indexed document with {res['total_chunks']} chunks in parallel ({res.get('strategy', 'sliding_window')}).",
             batch_id=res["batch_id"],
             topic=res["topic"],
             total_chunks=res["total_chunks"],
@@ -73,7 +73,7 @@ async def upload_faq_file(
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     try:
-        res = faq_service.ingest_file_stream(
+        res = await faq_service.ingest_file_stream(
             filename=filename,
             file_bytes=file_bytes,
             topic=topic.strip(),
@@ -81,7 +81,7 @@ async def upload_faq_file(
             overlap=overlap
         )
         return AtomicIngestResponse(
-            message=f"File '{file.filename}' parsed in-memory and indexed with {res['total_chunks']} chunks in parallel.",
+            message=f"File '{file.filename}' parsed in-memory and indexed with {res['total_chunks']} chunks ({res.get('strategy', 'sliding_window')}).",
             batch_id=res["batch_id"],
             topic=res["topic"],
             total_chunks=res["total_chunks"],
@@ -94,13 +94,14 @@ async def upload_faq_file(
     finally:
         del file_bytes
 
+
 @router.delete("/{doc_id}")
 async def delete_faq_document(
     doc_id: str,
     admin_user: dict = Depends(require_admin_role)
 ):
     """Delete a single chunk/document from ChromaDB RAG. Requires ADMIN role."""
-    success = faq_service.delete_document(doc_id)
+    success = await faq_service.delete_document(doc_id)
     if not success:
         raise HTTPException(status_code=404, detail="Document ID not found or could not be deleted.")
     return {"message": f"Document {doc_id} deleted successfully."}
@@ -111,12 +112,8 @@ async def delete_faq_batch(
     admin_user: dict = Depends(require_admin_role)
 ):
     """Delete all chunks belonging to a specific batch from ChromaDB RAG. Requires ADMIN role."""
-    count = faq_service.delete_batch(batch_id)
+    count = await faq_service.delete_batch(batch_id)
     if count == 0:
         raise HTTPException(status_code=404, detail=f"No chunks found for batch ID {batch_id}.")
     return {"message": f"Successfully deleted batch {batch_id} ({count} chunks removed)."}
 
-@router.post("/seed")
-async def seed_faq():
-    faq_service.seed()
-    return {"message": "Knowledge base seeded successfully"}

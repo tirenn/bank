@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   FileText,
   UploadCloud,
@@ -14,27 +15,41 @@ import {
   Zap,
   Lock,
   FileCheck,
-  X
+  X,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+  Sliders,
+  ShieldCheck
 } from 'lucide-react';
-import { ragAdminApi, aiAssistantApi } from '../services/api';
+import { ragAdminApi, aiAssistantApi, adminModelApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+
 
 export const AdminRagDashboard = () => {
   const { user, isAdmin } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'registry' | 'tester'
+  const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'registry' | 'tester' | 'models'
   const [documents, setDocuments] = useState([]);
   const [totalDocs, setTotalDocs] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // AI Models Database State
+  const [dbModels, setDbModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [newModelName, setNewModelName] = useState('');
+  const [newModelSlug, setNewModelSlug] = useState('');
+  const [newModelProvider, setNewModelProvider] = useState('openrouter');
+  const [newModelPriority, setNewModelPriority] = useState(10);
+  const [newModelFree, setNewModelFree] = useState(true);
+  const [modelActionStatus, setModelActionStatus] = useState(null);
 
   // Upload Form State
   const [uploadMode, setUploadMode] = useState('pdf'); // 'pdf' | 'text'
   const [topic, setTopic] = useState('');
   const [textContent, setTextContent] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
-  const [chunkSize, setChunkSize] = useState(500);
-  const [overlap, setOverlap] = useState(100);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null); // { success: bool, message: string, data?: any }
 
@@ -56,9 +71,23 @@ export const AdminRagDashboard = () => {
     }
   };
 
+  const fetchDbModels = async () => {
+    setLoadingModels(true);
+    try {
+      const data = await adminModelApi.listModels();
+      setDbModels(data.models || []);
+    } catch (e) {
+      console.error('Failed to load DB models:', e);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
   useEffect(() => {
     fetchDocuments();
+    fetchDbModels();
   }, []);
+
 
   if (!isAdmin) {
     return (
@@ -95,12 +124,12 @@ export const AdminRagDashboard = () => {
         if (!selectedFile) {
           throw new Error('Please select a PDF or text file to upload.');
         }
-        res = await ragAdminApi.uploadFile(selectedFile, topic, chunkSize, overlap);
+        res = await ragAdminApi.uploadFile(selectedFile, topic);
       } else {
         if (!textContent.trim()) {
           throw new Error('Please enter text content to chunk.');
         }
-        res = await ragAdminApi.uploadText(topic, textContent, chunkSize, overlap);
+        res = await ragAdminApi.uploadText(topic, textContent);
       }
 
       setUploadStatus({
@@ -124,6 +153,7 @@ export const AdminRagDashboard = () => {
     }
   };
 
+
   const handleDeleteDoc = async (docId) => {
     if (!window.confirm(`Delete chunk ${docId} from ChromaDB?`)) return;
     try {
@@ -141,6 +171,51 @@ export const AdminRagDashboard = () => {
       await fetchDocuments();
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to delete batch.');
+    }
+  };
+
+  const handleCreateModel = async (e) => {
+    e.preventDefault();
+    if (!newModelName.trim() || !newModelSlug.trim()) return;
+    setModelActionStatus(null);
+    try {
+      await adminModelApi.createModel({
+        name: newModelName.trim(),
+        model_id: newModelSlug.trim(),
+        provider: newModelProvider.trim(),
+        priority: parseInt(newModelPriority, 10) || 10,
+        is_free: newModelFree,
+        is_active: true,
+      });
+      setModelActionStatus({ success: true, message: `Model '${newModelName}' registered to database.` });
+      setNewModelName('');
+      setNewModelSlug('');
+      await fetchDbModels();
+    } catch (err) {
+      setModelActionStatus({
+        success: false,
+        message: err.response?.data?.error || err.message || 'Failed to create model in database.',
+      });
+    }
+  };
+
+  const handleToggleModelActive = async (model) => {
+    try {
+      const updatedActive = !model.is_active;
+      await adminModelApi.updateModel(model.id, { is_active: updatedActive });
+      await fetchDbModels();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to update model status.');
+    }
+  };
+
+  const handleDeleteModel = async (model) => {
+    if (!window.confirm(`Delete model '${model.name}' (${model.model_id}) from PostgreSQL?`)) return;
+    try {
+      await adminModelApi.deleteModel(model.id);
+      await fetchDbModels();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete model.');
     }
   };
 
@@ -169,6 +244,7 @@ export const AdminRagDashboard = () => {
       setTesting(false);
     }
   };
+
 
   const filteredDocs = documents.filter((doc) => {
     if (!searchQuery) return true;
@@ -253,8 +329,21 @@ export const AdminRagDashboard = () => {
             <Zap className="h-3.5 w-3.5" />
             <span>Semantic Tester</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('models')}
+            className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeTab === 'models'
+                ? 'bg-white text-slate-950 font-semibold'
+                : 'bg-white/[0.04] text-slate-400 hover:text-slate-200 border border-white/[0.06]'
+            }`}
+          >
+            <Cpu className="h-3.5 w-3.5 text-emerald-400" />
+            <span>AI Model Registry ({dbModels.length})</span>
+          </button>
         </div>
       </div>
+
 
       {/* TAB 1: INGEST NEW DOCUMENT */}
       {activeTab === 'upload' && (
@@ -379,38 +468,16 @@ export const AdminRagDashboard = () => {
                 </div>
               )}
 
-              {/* Chunking Sliders */}
-              <div className="grid grid-cols-2 gap-4 p-3.5 rounded-xl bg-black/40 border border-white/[0.06]">
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                    <span>Chunk Character Size</span>
-                    <span className="font-mono text-emerald-400">{chunkSize} chars</span>
+              {/* LLM Dynamic Chunking Smart Badge */}
+              <div className="p-3.5 rounded-xl bg-black/40 border border-emerald-500/20 flex items-start space-x-2.5 text-xs">
+                <span className="p-1 rounded bg-emerald-500/10 text-emerald-400 font-mono text-[10px] font-semibold border border-emerald-500/20">
+                  AI-POWERED
+                </span>
+                <div className="space-y-0.5">
+                  <div className="text-slate-200 font-medium">LLM-Driven Dynamic Semantic Chunking Active</div>
+                  <div className="text-[11px] text-slate-400">
+                    Chunk boundaries and overlap are automatically determined by the multi-model LLM pool to preserve complete financial clauses, interest tables, and policy terms.
                   </div>
-                  <input
-                    type="range"
-                    min="200"
-                    max="1500"
-                    step="50"
-                    value={chunkSize}
-                    onChange={(e) => setChunkSize(parseInt(e.target.value))}
-                    className="w-full accent-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                    <span>Sliding Window Overlap</span>
-                    <span className="font-mono text-emerald-400">{overlap} chars</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="300"
-                    step="25"
-                    value={overlap}
-                    onChange={(e) => setOverlap(parseInt(e.target.value))}
-                    className="w-full accent-emerald-500"
-                  />
                 </div>
               </div>
 
@@ -425,6 +492,7 @@ export const AdminRagDashboard = () => {
                   <span>{uploading ? 'Chunking & Ingesting in Parallel...' : 'Execute Parallel Atomic Ingestion'}</span>
                 </button>
               </div>
+
             </form>
           </div>
 
@@ -573,14 +641,230 @@ export const AdminRagDashboard = () => {
                   <span>Invoked Tools: <strong className="text-slate-200">{testResults.tools_used.join(', ')}</strong></span>
                 )}
               </div>
-              <div className="text-slate-200 whitespace-pre-wrap leading-relaxed">
-                {testResults.reply}
+              <div className="text-slate-200 leading-relaxed text-xs">
+                <ReactMarkdown
+                  components={{
+                    strong: ({ node, ...props }) => (
+                      <strong className="font-bold text-white" {...props} />
+                    ),
+                    em: ({ node, ...props }) => (
+                      <em className="italic text-slate-200" {...props} />
+                    ),
+                    p: ({ node, ...props }) => (
+                      <p className="mb-2 last:mb-0 leading-relaxed" {...props} />
+                    ),
+                    ul: ({ node, ...props }) => (
+                      <ul className="list-disc list-inside space-y-1 my-1.5 text-slate-300" {...props} />
+                    ),
+                    ol: ({ node, ...props }) => (
+                      <ol className="list-decimal list-inside space-y-1 my-1.5 text-slate-300" {...props} />
+                    ),
+                    code: ({ node, inline, ...props }) => (
+                      <code
+                        className="px-1.5 py-0.5 rounded bg-black/50 text-emerald-400 font-mono text-[11px] border border-white/[0.06]"
+                        {...props}
+                      />
+                    ),
+                    pre: ({ node, ...props }) => (
+                      <pre
+                        className="p-2.5 rounded-lg bg-black/60 border border-white/[0.08] overflow-x-auto my-2 text-[11px] font-mono text-emerald-300"
+                        {...props}
+                      />
+                    ),
+                  }}
+                >
+                  {testResults.reply}
+                </ReactMarkdown>
               </div>
             </div>
           )}
+
+        </div>
+      )}
+
+      {/* TAB 4: AI MODEL REGISTRY (POSTGRESQL) */}
+      {activeTab === 'models' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* Main Models List */}
+          <div className="lg:col-span-8 rounded-2xl bg-[#0f1117] border border-white/[0.08] p-6 shadow-lg space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+              <div>
+                <h3 className="text-sm font-semibold text-white">PostgreSQL AI Model Registry</h3>
+                <p className="text-[11px] text-slate-500 font-mono">Dynamic multi-model pool & ReAct fallback priorities</p>
+              </div>
+              <button
+                onClick={fetchDbModels}
+                className="p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/[0.06] cursor-pointer"
+                title="Refresh Models"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingModels ? 'animate-spin text-emerald-400' : ''}`} />
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-white/[0.06] text-slate-400 uppercase font-mono text-[10px]">
+                  <tr>
+                    <th className="py-2.5 px-3">Priority</th>
+                    <th className="py-2.5 px-3">Name</th>
+                    <th className="py-2.5 px-3">Model Slug</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {loadingModels ? (
+                    <tr>
+                      <td colSpan="5" className="py-10 text-center text-slate-500 font-mono">
+                        Loading AI models from PostgreSQL...
+                      </td>
+                    </tr>
+                  ) : dbModels.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="py-10 text-center text-slate-500">
+                        No AI models configured in database.
+                      </td>
+                    </tr>
+                  ) : (
+                    dbModels.map((m) => (
+                      <tr key={m.id} className="hover:bg-white/[0.02] transition-colors font-mono text-xs">
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-emerald-400 font-bold">
+                            #{m.priority}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-sans font-medium text-slate-200 whitespace-nowrap">
+                          {m.name}
+                        </td>
+                        <td className="py-3 px-3 text-[11px] text-slate-400 whitespace-nowrap">
+                          {m.model_id}
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <button
+                            onClick={() => handleToggleModelActive(m)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer border ${
+                              m.is_active
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}
+                          >
+                            {m.is_active ? 'ACTIVE' : 'DISABLED'}
+                          </button>
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => handleDeleteModel(m)}
+                            className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-white/[0.06] transition-colors cursor-pointer"
+                            title="Delete model from DB"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Add New Model Form */}
+          <div className="lg:col-span-4 rounded-2xl bg-[#0f1117] border border-white/[0.08] p-6 shadow-lg space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-white flex items-center space-x-1.5">
+                <Plus className="h-4 w-4 text-emerald-400" />
+                <span>Register New Model</span>
+              </h3>
+              <p className="text-[11px] text-slate-500 font-mono">Insert model into PostgreSQL database</p>
+            </div>
+
+            {modelActionStatus && (
+              <div
+                className={`p-3 rounded-xl border text-xs ${
+                  modelActionStatus.success
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                    : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                }`}
+              >
+                {modelActionStatus.message}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateModel} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Friendly Display Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newModelName}
+                  onChange={(e) => setNewModelName(e.target.value)}
+                  placeholder="e.g. DeepSeek R1 Distill"
+                  className="w-full px-3 py-2 bg-black/40 border border-white/[0.08] rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500/60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Model Slug / Identifier</label>
+                <input
+                  type="text"
+                  required
+                  value={newModelSlug}
+                  onChange={(e) => setNewModelSlug(e.target.value)}
+                  placeholder="e.g. deepseek/deepseek-r1:free"
+                  className="w-full px-3 py-2 bg-black/40 border border-white/[0.08] rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500/60 font-mono text-[11px]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Provider</label>
+                  <input
+                    type="text"
+                    value={newModelProvider}
+                    onChange={(e) => setNewModelProvider(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/[0.08] rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500/60 font-mono text-[11px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Fallback Priority</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={newModelPriority}
+                    onChange={(e) => setNewModelPriority(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/[0.08] rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500/60 font-mono text-[11px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="model-free"
+                  checked={newModelFree}
+                  onChange={(e) => setNewModelFree(e.target.checked)}
+                  className="rounded bg-black/40 border-white/[0.08] text-emerald-500 focus:ring-0"
+                />
+                <label htmlFor="model-free" className="text-slate-300 text-xs cursor-pointer">
+                  Free Tier (No credit charge)
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full mt-2 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-all shadow-md cursor-pointer"
+              >
+                Save Model to Database
+              </button>
+            </form>
+          </div>
+
         </div>
       )}
 
     </div>
   );
 };
+

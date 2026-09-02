@@ -47,15 +47,20 @@ type CreateAccountRequest struct {
 }
 
 type UpdateAccountStatusRequest struct {
-	AccountID uint64 `json:"account_id,omitempty"`
-	Frozen    bool   `json:"frozen"`
-	Reason    string `json:"reason"`
+	AccountID     uint64 `json:"account_id,omitempty"`
+	AccountNumber string `json:"account_number,omitempty"`
+	CardNumber    string `json:"card_number,omitempty"`
+	Frozen        bool   `json:"frozen"`
+	Reason        string `json:"reason"`
 }
 
 type UpdateAccountLimitRequest struct {
 	AccountID               uint64 `json:"account_id,omitempty"`
+	AccountNumber           string `json:"account_number,omitempty"`
+	CardNumber              string `json:"card_number,omitempty"`
 	DailyTransferLimitCents int64  `json:"daily_transfer_limit_cents"`
 }
+
 
 
 

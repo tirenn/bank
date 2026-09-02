@@ -1,4 +1,4 @@
-﻿package middleware
+package middleware
 
 import (
 	"context"
@@ -9,8 +9,9 @@ import (
 )
 
 const HeaderXRequestID = "X-Request-ID"
+const HeaderXTraceID = "X-Trace-ID"
 
-// RequestIDMiddleware extracts or generates a unique X-Request-ID per request
+// RequestIDMiddleware extracts or generates a unique X-Request-ID and X-Trace-ID per request
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		reqID := c.GetHeader(HeaderXRequestID)
@@ -18,13 +19,22 @@ func RequestIDMiddleware() gin.HandlerFunc {
 			reqID = uuid.New().String()
 		}
 
-		c.Header(HeaderXRequestID, reqID)
-		c.Set(string(logger.RequestIDKey), reqID)
+		traceID := c.GetHeader(HeaderXTraceID)
+		if traceID == "" {
+			traceID = reqID
+		}
 
-		// Inject request_id into standard Go context
+		c.Header(HeaderXRequestID, reqID)
+		c.Header(HeaderXTraceID, traceID)
+		c.Set(string(logger.RequestIDKey), reqID)
+		c.Set(string(logger.TraceIDKey), traceID)
+
+		// Inject request_id and trace_id into standard Go context
 		ctx := context.WithValue(c.Request.Context(), logger.RequestIDKey, reqID)
+		ctx = context.WithValue(ctx, logger.TraceIDKey, traceID)
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}
 }
+

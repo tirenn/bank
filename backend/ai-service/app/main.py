@@ -7,7 +7,10 @@ from app.config import settings
 from app.logger import setup_logger, app_logger
 from app.middleware import RequestIDMiddleware, RedisSlidingWindowRateLimiter
 from app.services.faq_service import faq_service
+from app.services.rag_cache_service import rag_cache_service
+from app.services.chat_history_service import chat_history_service
 from app.api.v1.router import api_v1_router
+
 
 # Initialize Redis sliding window rate limiter
 rate_limiter = RedisSlidingWindowRateLimiter(
@@ -19,10 +22,13 @@ rate_limiter = RedisSlidingWindowRateLimiter(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logger(service_name="bank-ai", environment=settings.ENVIRONMENT)
-    app_logger.info("Initializing ChromaDB FAQ Knowledge Base and Redis rate limiter...")
-    faq_service.seed()
+    app_logger.info("Initializing ChromaDB FAQ Knowledge Base, Redis rate limiter, Redis RAG cache, and Conversation History...")
     await rate_limiter.connect()
+    await rag_cache_service.connect()
+    await chat_history_service.connect()
     yield
+
+
 
 app = FastAPI(
     title="Banking AI Microservice",
@@ -48,10 +54,12 @@ async def health():
         "service": "bank-ai-microservice",
         "architecture": "clean-architecture-domain-driven",
         "chroma_connected": faq_service.repo.collection is not None,
-        "default_model": settings.OPENROUTER_MODEL,
+        "model_source": "dynamic-database-pool",
         "rate_limiter": "redis-sliding-window",
+        "rag_cache": "redis-rag-answer-cache",
         "environment": settings.ENVIRONMENT
     }
+
 
 # Register V1 API Routes
 app.include_router(api_v1_router)

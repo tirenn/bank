@@ -74,6 +74,7 @@ func Run() error {
 	accountRepo := repository.NewAccountRepository(gormDB)
 	txRepo := repository.NewTransactionRepository(gormDB)
 	beneficiaryRepo := repository.NewBeneficiaryRepository(gormDB)
+	aiModelRepo := repository.NewAIModelRepository(gormDB)
 
 	authService := service.NewAuthService(userRepo, accountRepo, cfg.JWTSecret)
 	accountService := service.NewAccountService(accountRepo, userRepo)
@@ -81,6 +82,7 @@ func Run() error {
 	beneficiaryService := service.NewBeneficiaryService(beneficiaryRepo)
 	forexService := service.NewForexService()
 	loanService := service.NewLoanService()
+	aiModelService := service.NewAIModelService(aiModelRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	accountHandler := handler.NewAccountHandler(accountService)
@@ -88,6 +90,7 @@ func Run() error {
 	beneficiaryHandler := handler.NewBeneficiaryHandler(beneficiaryService)
 	forexHandler := handler.NewForexHandler(forexService)
 	loanHandler := handler.NewLoanHandler(loanService)
+	aiModelHandler := handler.NewAIModelHandler(aiModelService)
 
 	// 5.1 Private MCP Domain Servers
 	txMCPServer := mcp.NewTransactionMCPServer(accountService, transferService)
@@ -105,11 +108,13 @@ func Run() error {
 		beneficiaryHandler,
 		forexHandler,
 		loanHandler,
+		aiModelHandler,
 		txMCPServer,
 		idMCPServer,
 		secMCPServer,
 		wltMCPServer,
 	)
+
 
 
 

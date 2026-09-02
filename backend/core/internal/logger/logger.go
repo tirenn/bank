@@ -1,4 +1,4 @@
-﻿package logger
+package logger
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"os"
 	"runtime"
 	"time"
+
+	"bank-core/internal/security"
 )
 
 type LogLevel string
@@ -75,13 +77,14 @@ func logMessage(ctx context.Context, level LogLevel, msg string, err error, fiel
 		RequestID:   reqID,
 		TraceID:     traceID,
 		Caller:      caller,
-		Message:     msg,
-		Fields:      fields,
+		Message:     security.RedactText(msg, true),
+		Fields:      security.RedactMap(fields, true),
 	}
 
 	if err != nil {
-		entry.Error = err.Error()
+		entry.Error = security.RedactText(err.Error(), true)
 	}
+
 
 	jsonBytes, _ := json.Marshal(entry)
 	fmt.Fprintln(os.Stdout, string(jsonBytes))

@@ -41,3 +41,21 @@ def require_admin_role(authorization: str = Header(None, description="Bearer JWT
     except Exception as e:
         logger.error(f"Error parsing JWT token for RBAC: {e}")
         raise HTTPException(status_code=401, detail=f"Invalid authorization token: {str(e)}")
+
+
+def extract_user_from_token(token: str) -> dict:
+    """
+    Extracts payload claims from JWT token safely.
+    """
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return {}
+        payload_b64 = parts[1]
+        payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+        payload_json = base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8")
+        return json.loads(payload_json)
+    except Exception as e:
+        logger.warning(f"Failed to decode user from token: {e}")
+        return {}
+

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"bank-core/internal/domain"
 	"github.com/gin-gonic/gin"
@@ -47,9 +48,26 @@ func (s *TransactionMCPServer) HandleJSONRPC(c *gin.Context) {
 		tools := []ToolDefinition{
 			{
 				Name:        "get_balance",
-				Description: "Retrieve current bank balance, account number, status, and owner details.",
-				InputSchema: map[string]interface{}{"type": "object", "properties": map[string]interface{}{}, "required": []string{}},
+				Description: "Retrieve current bank balance for a specific account number or card number. If identifier is omitted and user has multiple accounts, returns the accounts list prompting the user to specify by account number or card number.",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"account_number": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional: Bank Account Number (e.g. ACC-10029384) or Account Name (e.g. Primary Checking)",
+						},
+						"card_number": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional: Full 16-digit Card Number or last 4 digits (e.g. '5412 7721 9012 4431' or '4431')",
+						},
+						"account_identifier": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional: Account Number, Card Number (or last 4 digits), or Account Name",
+						},
+					},
+				},
 			},
+
 			{
 				Name:        "get_transactions",
 				Description: "Retrieve recent ledger transaction history with optional category and limit filters.",
@@ -164,23 +182,104 @@ func (s *TransactionMCPServer) executeTool(ctx context.Context, userID uint64, n
 
 	switch name {
 	case "get_balance":
-		detail, err := s.accountService.GetUserAccount(ctx, userID)
+		res, err := s.accountService.ListUserAccounts(ctx, userID)
 		if err != nil {
 			return CallToolResult{IsError: true, Content: []ContentItem{{Type: "text", Text: err.Error()}}}
 		}
-		bal := float64(detail.Account.BalanceCents) / 100.0
-		text := fmt.Sprintf("Account Details:\n- Owner: %s\n- Account Number: %s\n- Available Balance: $%.2f %s\n- Status: %s",
-			detail.User.FullName, detail.Account.AccountNumber, bal, detail.Account.Currency, detail.Account.Status)
+		if len(res.Accounts) == 0 {
+			return CallToolResult{IsError: true, Content: []ContentItem{{Type: "text", Text: "No bank accounts found for this user."}}}
+		}
+
+		targetAccNum := strings.TrimSpace(parseString(args["account_number"]))
+		targetCardNum := strings.TrimSpace(parseString(args["card_number"]))
+		targetIdent := strings.TrimSpace(parseString(args["account_identifier"]))
+
+		if targetIdent != "" {
+			if strings.HasPrefix(strings.ToUpper(targetIdent), "ACC-") && targetAccNum == "" {
+				targetAccNum = targetIdent
+			} else if targetCardNum == "" {
+				targetCardNum = targetIdent
+			}
+		}
+
+		cleanTargetCard := strings.ReplaceAll(strings.ReplaceAll(targetCardNum, " ", ""), "-", "")
+
+		var matched *domain.Account
+		hasTargetFilter := targetAccNum != "" || targetCardNum != "" || targetIdent != ""
+
+		if hasTargetFilter {
+			for i := range res.Accounts {
+				acc := &res.Accounts[i]
+				cleanAccCard := strings.ReplaceAll(strings.ReplaceAll(acc.CardNumber, " ", ""), "-", "")
+
+				if targetAccNum != "" && strings.EqualFold(acc.AccountNumber, targetAccNum) {
+					matched = acc
+					break
+				}
+				if cleanTargetCard != "" && (cleanAccCard == cleanTargetCard || strings.HasSuffix(cleanAccCard, cleanTargetCard)) {
+					matched = acc
+					break
+				}
+				if targetIdent != "" && (strings.EqualFold(acc.AccountNumber, targetIdent) || strings.EqualFold(acc.AccountName, targetIdent) || strings.EqualFold(acc.CardBrand, targetIdent)) {
+					matched = acc
+					break
+				}
+			}
+
+			if matched == nil {
+				return CallToolResult{
+					IsError: true,
+					Content: []ContentItem{{Type: "text", Text: fmt.Sprintf("Access Denied: Account or card '%s' does not belong to your profile or does not exist. You are only authorized to view balances for your own accounts.", targetIdent)}},
+				}
+			}
+
+		} else {
+			if len(res.Accounts) == 1 {
+				matched = &res.Accounts[0]
+			} else {
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("You have %d bank accounts. Which account would you like to check? Please specify the **Account Number** or **Card Number**:\n\n", len(res.Accounts)))
+				for i, acc := range res.Accounts {
+					cardMasked := acc.CardNumber
+					if len(cardMasked) >= 4 {
+						cardMasked = "..." + cardMasked[len(cardMasked)-4:]
+					}
+					bal := float64(acc.BalanceCents) / 100.0
+					sb.WriteString(fmt.Sprintf("%d. **%s** — Account: `%s` | Card: `%s %s` | Balance: $%.2f\n",
+						i+1, acc.AccountName, acc.AccountNumber, acc.CardBrand, cardMasked, bal))
+				}
+				sb.WriteString("\nPlease tell me which **Account Number** (e.g. `ACC-10029384`) or **Card Number** (or last 4 digits) to check.")
+				return CallToolResult{
+					Content:    []ContentItem{{Type: "text", Text: sb.String()}},
+					ActionType: "SHOW_ACCOUNTS",
+					ActionData: map[string]interface{}{
+						"accounts": res.Accounts,
+						"count":    res.Count,
+					},
+				}
+			}
+		}
+
+		bal := float64(matched.BalanceCents) / 100.0
+		text := fmt.Sprintf("Account Details:\n- Owner: %s\n- Account Name: %s\n- Account Number: %s\n- Card: %s (%s)\n- Available Balance: $%.2f %s\n- Status: %s",
+			res.User.FullName, matched.AccountName, matched.AccountNumber, matched.CardBrand, matched.CardNumber, bal, matched.Currency, matched.Status)
 		return CallToolResult{
 			Content:    []ContentItem{{Type: "text", Text: text}},
 			ActionType: "SHOW_BALANCE",
 			ActionData: map[string]interface{}{
-				"account_number": detail.Account.AccountNumber,
+				"account_id":      matched.ID,
+				"account_name":    matched.AccountName,
+				"account_number":  matched.AccountNumber,
+				"card_number":     matched.CardNumber,
+				"card_brand":      matched.CardBrand,
 				"balance_dollars": bal,
-				"currency": detail.Account.Currency,
-				"owner_name": detail.User.FullName,
+				"currency":        matched.Currency,
+				"owner_name":      res.User.FullName,
+				"status":          matched.Status,
 			},
 		}
+
+
 
 	case "get_transactions":
 		limit := 5
@@ -376,3 +475,21 @@ func parseFloat(v interface{}) float64 {
 	}
 	return 0
 }
+
+func parseUint(v interface{}) uint64 {
+	switch n := v.(type) {
+	case float64:
+		return uint64(n)
+	case int:
+		return uint64(n)
+	case int64:
+		return uint64(n)
+	case uint64:
+		return n
+	case string:
+		u, _ := strconv.ParseUint(strings.TrimSpace(n), 10, 64)
+		return u
+	}
+	return 0
+}
+

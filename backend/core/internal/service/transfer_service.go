@@ -58,15 +58,23 @@ func (s *TransferService) Deposit(ctx context.Context, userID uint64, req *domai
 }
 
 func (s *TransferService) GetTransactions(ctx context.Context, userID uint64, limit int, offset int, category string) ([]domain.Transaction, error) {
-	acc, err := s.accountRepo.FindByUserID(ctx, userID)
+	accounts, err := s.accountRepo.ListByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if acc == nil {
-		return nil, errors.New("account not found")
+	if len(accounts) == 0 {
+		return nil, errors.New("no accounts found for this user")
 	}
 
-	return s.txRepo.ListByAccountID(ctx, acc.ID, limit, offset, category)
+	var allTxs []domain.Transaction
+	for _, acc := range accounts {
+		txs, err := s.txRepo.ListByAccountID(ctx, acc.ID, limit, offset, category)
+		if err == nil && len(txs) > 0 {
+			allTxs = append(allTxs, txs...)
+		}
+	}
+
+	return allTxs, nil
 }
 
 func (s *TransferService) GetSpendingSummary(ctx context.Context, userID uint64) (*domain.SpendingSummary, error) {
@@ -82,19 +90,24 @@ func (s *TransferService) GetSpendingSummary(ctx context.Context, userID uint64)
 }
 
 func (s *TransferService) GetTransactionDetail(ctx context.Context, userID uint64, identifier string) (*domain.Transaction, error) {
-	acc, err := s.accountRepo.FindByUserID(ctx, userID)
+	accounts, err := s.accountRepo.ListByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if acc == nil {
-		return nil, errors.New("account not found")
+	if len(accounts) == 0 {
+		return nil, errors.New("no accounts found for this user")
+	}
+
+	userAccMap := make(map[uint64]bool)
+	for _, a := range accounts {
+		userAccMap[a.ID] = true
 	}
 
 	// Try finding by integer ID
 	var parsedID uint64
 	if _, err := fmt.Sscanf(identifier, "%d", &parsedID); err == nil && parsedID > 0 {
 		tx, err := s.txRepo.FindByID(ctx, parsedID)
-		if err == nil && tx != nil && tx.AccountID == acc.ID {
+		if err == nil && tx != nil && userAccMap[tx.AccountID] {
 			return tx, nil
 		}
 	}
@@ -104,8 +117,8 @@ func (s *TransferService) GetTransactionDetail(ctx context.Context, userID uint6
 	if err != nil {
 		return nil, err
 	}
-	if tx == nil || tx.AccountID != acc.ID {
-		return nil, errors.New("transaction not found or access denied")
+	if tx == nil || !userAccMap[tx.AccountID] {
+		return nil, errors.New("transaction not found or access denied: you are not authorized to view this transaction")
 	}
 
 	return tx, nil
@@ -158,6 +171,7 @@ func (s *TransferService) GenerateStatement(ctx context.Context, userID uint64, 
 		EndingBalanceCents:   acc.BalanceCents,
 		TotalDepositsCents:   totalDeposits,
 		TotalWithdrawalsCents: totalWithdrawals,
+
 		TransactionCount:     len(txs),
 		Transactions:         txs,
 		GeneratedAt:          now,

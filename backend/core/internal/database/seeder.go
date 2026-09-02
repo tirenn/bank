@@ -58,10 +58,17 @@ func SeedDatabase(db *gorm.DB) error {
 		}
 	}
 
+	// Always ensure AI Models are seeded if table is empty
+	if err := SeedAIModels(db); err != nil {
+		logger.Warn(ctx, "AI model seeder note", map[string]interface{}{"error": err.Error()})
+	}
+
 	if count > 0 {
 		logger.Info(ctx, "Database already seeded. Skipping other seeders.", map[string]interface{}{"user_count": count})
 		return nil
 	}
+
+
 
 	logger.Info(ctx, "Seeding database with demo users, accounts, and transactions via GORM...")
 
@@ -265,4 +272,62 @@ func SeedDatabase(db *gorm.DB) error {
 	logger.Info(ctx, "Seeder completed successfully with GORM")
 	return nil
 }
+
+func SeedAIModels(db *gorm.DB) error {
+	ctx := context.Background()
+
+	var modelCount int64
+	if err := db.WithContext(ctx).Model(&domain.AIModel{}).Count(&modelCount).Error; err != nil {
+		logger.Warn(ctx, "Failed to count AI models", map[string]interface{}{"error": err.Error()})
+		return err
+	}
+
+	if modelCount > 0 {
+		logger.Info(ctx, "AI models already present in database. Skipping AI model seeding.", map[string]interface{}{
+			"count": modelCount,
+		})
+		return nil
+	}
+
+	logger.Info(ctx, "Seeding AI models in PostgreSQL database...")
+
+	modelSeeds := []struct {
+		Slug string
+		Name string
+	}{
+		{"nvidia/nemotron-3-ultra-550b-a55b:free", "NVIDIA Nemotron 3 Ultra 550B"},
+		{"nvidia/nemotron-3-super-120b-a12b:free", "NVIDIA Nemotron 3 Super 120B"},
+		{"meta-llama/llama-3.3-70b-instruct:free", "Meta Llama 3.3 70B Instruct"},
+		{"nousresearch/hermes-3-llama-3.1-405b:free", "Hermes 3 Llama 3.1 405B"},
+		{"google/gemma-4-31b-it:free", "Google Gemma 4 31B"},
+		{"google/gemma-4-26b-a4b-it:free", "Google Gemma 4 26B"},
+		{"qwen/qwen3-next-80b-a3b-instruct:free", "Qwen 3 Next 80B Instruct"},
+		{"openai/gpt-oss-20b:free", "OpenAI GPT OSS 20B"},
+		{"z-ai/glm-5.2:free", "Z-AI GLM 5.2"},
+		{"minimax/minimax-m3-20260531:free", "MiniMax M3"},
+		{"cognitivecomputations/dolphin-mistral-24b-venice-edition:free", "Dolphin Mistral 24B Venice"},
+		{"tencent/hy3:free", "Tencent HY3"},
+		{"openrouter/free", "OpenRouter Free Auto-Router"},
+	}
+
+	for i, item := range modelSeeds {
+		aiModel := domain.AIModel{
+			Name:      item.Name,
+			ModelID:   item.Slug,
+			Provider:  "openrouter",
+			IsFree:    true,
+			IsActive:  true,
+			Priority:  i + 1,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		if err := db.WithContext(ctx).Where("model_id = ?", item.Slug).FirstOrCreate(&aiModel).Error; err != nil {
+			logger.Error(ctx, fmt.Sprintf("Failed to seed model %s", item.Slug), err)
+		}
+	}
+
+	logger.Info(ctx, fmt.Sprintf("Seeded %d AI models into PostgreSQL successfully", len(modelSeeds)))
+	return nil
+}
+
 

@@ -1,4 +1,4 @@
-﻿# Multi-Stage Dockerfile for Python AI Service
+# Multi-Stage Dockerfile for Python AI Service
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
@@ -14,11 +14,17 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY --from=builder /root/.local /root/.local
-COPY . .
 
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 
+# Pre-cache ONNX embedding model layer (cached independently of source code changes)
+RUN python -c "from chromadb.utils import embedding_functions; emb = embedding_functions.DefaultEmbeddingFunction(); emb(['warmup'])"
+
+COPY . .
+
 EXPOSE 8005
 
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8005"]
+

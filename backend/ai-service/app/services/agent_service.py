@@ -7,13 +7,20 @@ from app.domain.schemas import ChatMessage, ChatResponse
 from app.repositories.mcp_repository import mcp_repository
 from app.repositories.faq_repository import faq_repository
 
+from app.services.model_fallback import model_fallback
+from app.services.react_harness import react_harness
+from app.services.prompt_loader import load_prompt
+from app.services.rag_cache_service import rag_cache_service
+
 logger = logging.getLogger("ai_service.services.agent")
 
+
 class BaseSubAgent:
-    def __init__(self, name: str, domain: str, system_prompt: str):
+    def __init__(self, name: str, domain: str, prompt_file: str):
         self.name = name
         self.domain = domain
-        self.system_prompt = system_prompt
+        self.prompt_file = prompt_file
+        self.system_prompt = load_prompt(prompt_file)
         self._cached_tools: Optional[List[Dict[str, Any]]] = None
 
     async def get_tools(self) -> List[Dict[str, Any]]:
@@ -29,66 +36,38 @@ class BaseSubAgent:
         messages: List[ChatMessage],
         auth_token: Optional[str] = None,
         openai_client: Optional[AsyncOpenAI] = None,
-        model: str = "meta-llama/llama-3.3-70b-instruct:free"
+        model: Optional[str] = None
     ) -> ChatResponse:
         tools = await self.get_tools()
 
-        if openai_client and tools:
-            try:
-                llm_messages = [{"role": "system", "content": self.system_prompt}]
-                for m in messages:
-                    llm_messages.append({"role": m.role, "content": m.content})
+        if not openai_client:
+            return ChatResponse(
+                reply="⚠️ AI Service is offline or OpenRouter API key is not configured. Please configure an API key in settings or verify server environment variables.",
+                action_type=None,
+                action_data=None,
+                tools_used=[]
+            )
 
-                response = await openai_client.chat.completions.create(
-                    model=model,
-                    messages=llm_messages,
-                    tools=tools,
-                    tool_choice="auto",
-                    temperature=0.1,
-                )
-
-                choice = response.choices[0].message
-                if choice.tool_calls:
-                    tools_used = []
-                    reply_parts = []
-                    last_action_type = None
-                    last_action_data = None
-
-                    for tc in choice.tool_calls:
-                        t_name = tc.function.name
-                        try:
-                            t_args = json.loads(tc.function.arguments)
-                        except Exception:
-                            t_args = {}
-
-                        tools_used.append(t_name)
-                        res_text, act_type, act_data = await self.execute_tool(t_name, t_args, auth_token)
-                        reply_parts.append(res_text)
-                        if act_type:
-                            last_action_type = act_type
-                            last_action_data = act_data
-
-                    reply = "\n\n".join(reply_parts)
-                    return ChatResponse(
-                        reply=reply,
-                        action_type=last_action_type,
-                        action_data=last_action_data,
-                        tools_used=tools_used
-                    )
-                else:
-                    return ChatResponse(
-                        reply=choice.content or "How else can I assist with your transaction?",
-                        action_type=None,
-                        action_data=None,
-                        tools_used=[]
-                    )
-            except Exception as e:
-                logger.error(f"Error in SubAgent {self.name} LLM execution: {e}", exc_info=True)
-
-        return await self.fallback_run(messages, auth_token)
-
-    async def fallback_run(self, messages: List[ChatMessage], auth_token: Optional[str] = None) -> ChatResponse:
-        raise NotImplementedError("Sub-agents must implement fallback_run")
+        prompt_content = load_prompt(self.prompt_file) or self.system_prompt
+        try:
+            # Full Model-Driven: Execute multi-turn ReAct Loop Harness
+            return await react_harness.execute_loop(
+                system_prompt=prompt_content,
+                user_messages=messages,
+                tools=tools,
+                tool_executor=self.execute_tool,
+                auth_token=auth_token,
+                openai_client=openai_client,
+                model_override=model
+            )
+        except Exception as e:
+            logger.error(f"[ReAct Harness Error in {self.name}]: {e}", exc_info=True)
+            return ChatResponse(
+                reply=f"⚠️ An error occurred while processing your request via {self.name}: {str(e)}",
+                action_type=None,
+                action_data=None,
+                tools_used=[]
+            )
 
 
 class TransactionSubAgent(BaseSubAgent):
@@ -96,71 +75,8 @@ class TransactionSubAgent(BaseSubAgent):
         super().__init__(
             name="TransactionSubAgent",
             domain="transaction",
-            system_prompt=(
-                "You are Nova's Transaction & Ledger Sub-Agent. You specialize exclusively in account balances, "
-                "wire transfers, transaction histories, audit receipts, monthly bank statements, listing all user bank accounts, "
-                "and instantly opening new bank accounts (with auto-generated credit/debit card numbers). "
-                "Always invoke the appropriate transaction tool."
-            )
+            prompt_file="transaction_agent.md"
         )
-
-    async def fallback_run(self, messages: List[ChatMessage], auth_token: Optional[str] = None) -> ChatResponse:
-        last_msg = messages[-1].content.lower() if messages else ""
-
-        if any(w in last_msg for w in ["open account", "buka rekening", "create account", "buat akun", "new account", "rekening baru"]):
-            acc_type = "SAVINGS"
-            if "checking" in last_msg or "giro" in last_msg:
-                acc_type = "CHECKING"
-            elif "invest" in last_msg:
-                acc_type = "INVESTMENT"
-
-            card_brand = "VISA"
-            if "mastercard" in last_msg:
-                card_brand = "MASTERCARD"
-
-            acc_name = "New Savings Account"
-            if "liburan" in last_msg or "vacation" in last_msg:
-                acc_name = "Vacation Savings"
-            elif "invest" in last_msg:
-                acc_name = "Investment Growth Account"
-            elif "emergency" in last_msg or "darurat" in last_msg:
-                acc_name = "Emergency Reserve"
-
-            res_str, act_type, act_data = await self.execute_tool("open_new_account", {
-                "account_name": acc_name,
-                "account_type": acc_type,
-                "currency": "USD",
-                "card_brand": card_brand,
-                "initial_deposit_dollars": 500.0
-            }, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["open_new_account"])
-
-        if any(w in last_msg for w in ["all accounts", "semua rekening", "list accounts", "my accounts", "daftar rekening"]):
-            res_str, act_type, act_data = await self.execute_tool("get_all_accounts", {}, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["get_all_accounts"])
-
-        if any(w in last_msg for w in ["balance", "saldo", "how much money", "account details"]):
-            res_str, act_type, act_data = await self.execute_tool("get_balance", {}, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["get_balance"])
-
-        if any(w in last_msg for w in ["history", "recent", "spent", "mutasi", "activities"]):
-            res_str, act_type, act_data = await self.execute_tool("get_transactions", {"limit": 5}, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["get_transactions"])
-
-        if any(w in last_msg for w in ["statement", "rekening koran", "laporan"]):
-            res_str, act_type, act_data = await self.execute_tool("request_account_statement", {}, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["request_account_statement"])
-
-        if any(w in last_msg for w in ["transfer", "send", "kirim", "pay"]):
-            res_str, act_type, act_data = await self.execute_tool("draft_transfer", {
-                "to_account_number": "ACC-83920194",
-                "amount": 50.0,
-                "description": "AI Assistant Transfer"
-            }, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["draft_transfer"])
-
-        res_str, act_type, act_data = await self.execute_tool("get_balance", {}, auth_token)
-        return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["get_balance"])
 
 
 class IdentitySubAgent(BaseSubAgent):
@@ -168,34 +84,8 @@ class IdentitySubAgent(BaseSubAgent):
         super().__init__(
             name="IdentitySubAgent",
             domain="identity",
-            system_prompt=(
-                "You are Nova's Identity & KYC Sub-Agent. You specialize exclusively in user profiles, "
-                "residential address changes, and government document KYC verifications."
-            )
+            prompt_file="identity_agent.md"
         )
-
-    async def fallback_run(self, messages: List[ChatMessage], auth_token: Optional[str] = None) -> ChatResponse:
-        last_msg = messages[-1].content.lower() if messages else ""
-
-        if any(w in last_msg for w in ["address to", "change address", "update address", "ganti alamat"]):
-            res_str, act_type, act_data = await self.execute_tool("update_user_address", {
-                "street": "450 Wall St",
-                "city": "New York",
-                "state": "NY",
-                "postal_code": "10005",
-                "country": "United States"
-            }, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["update_user_address"])
-
-        if any(w in last_msg for w in ["submit kyc", "passport", "national id", "verifikasi kyc"]):
-            res_str, act_type, act_data = await self.execute_tool("submit_kyc_verification", {
-                "doc_type": "PASSPORT",
-                "doc_number": "US-PASS-992019"
-            }, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["submit_kyc_verification"])
-
-        res_str, act_type, act_data = await self.execute_tool("get_user_profile", {}, auth_token)
-        return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["get_user_profile"])
 
 
 class SecuritySubAgent(BaseSubAgent):
@@ -203,29 +93,8 @@ class SecuritySubAgent(BaseSubAgent):
         super().__init__(
             name="SecuritySubAgent",
             domain="security",
-            system_prompt=(
-                "You are Nova's Security & Risk Sub-Agent. You handle emergency card locking/freezing "
-                "and setting account daily spending limits."
-            )
+            prompt_file="security_agent.md"
         )
-
-    async def fallback_run(self, messages: List[ChatMessage], auth_token: Optional[str] = None) -> ChatResponse:
-        last_msg = messages[-1].content.lower() if messages else ""
-
-        if any(w in last_msg for w in ["unfreeze", "unlock", "unblock", "buka kunci"]):
-            res_str, act_type, act_data = await self.execute_tool("lock_unlock_card", {"freeze": False, "reason": "User requested card unfreeze"}, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["lock_unlock_card"])
-
-        if any(w in last_msg for w in ["freeze", "lock", "block", "bekukan", "blokir"]):
-            res_str, act_type, act_data = await self.execute_tool("lock_unlock_card", {"freeze": True, "reason": "Emergency card freeze requested"}, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["lock_unlock_card"])
-
-        if any(w in last_msg for w in ["spending limit", "transfer limit", "daily limit", "set limit", "atur limit"]):
-            res_str, act_type, act_data = await self.execute_tool("set_spending_limit", {"daily_limit_dollars": 8000.0}, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["set_spending_limit"])
-
-        res_str, act_type, act_data = await self.execute_tool("lock_unlock_card", {"freeze": True, "reason": "Security status check"}, auth_token)
-        return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["lock_unlock_card"])
 
 
 class WealthSubAgent(BaseSubAgent):
@@ -233,44 +102,8 @@ class WealthSubAgent(BaseSubAgent):
         super().__init__(
             name="WealthSubAgent",
             domain="wealth",
-            system_prompt=(
-                "You are Nova's Wealth & Financial Planning Sub-Agent. You handle live currency exchange calculations (forex), "
-                "loan and mortgage amortization simulations, and trusted transfer contacts / beneficiaries."
-            )
+            prompt_file="wealth_agent.md"
         )
-
-    async def fallback_run(self, messages: List[ChatMessage], auth_token: Optional[str] = None) -> ChatResponse:
-        last_msg = messages[-1].content.lower() if messages else ""
-
-        if any(w in last_msg for w in ["convert", "exchange", "kurs", "valas", "forex", "idr", "eur", "usd"]):
-            res_str, act_type, act_data = await self.execute_tool("calculate_forex_conversion", {
-                "amount": 500.0,
-                "from_currency": "USD",
-                "to_currency": "IDR" if "idr" in last_msg else "EUR"
-            }, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["calculate_forex_conversion"])
-
-        if any(w in last_msg for w in ["loan", "mortgage", "pinjaman", "kpr", "cicilan", "installment"]):
-            res_str, act_type, act_data = await self.execute_tool("calculate_loan_mortgage", {
-                "principal": 35000.0,
-                "annual_rate_pct": 6.5,
-                "term_months": 60,
-                "loan_type": "PERSONAL"
-            }, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["calculate_loan_mortgage"])
-
-        if any(w in last_msg for w in ["beneficiar", "payee", "kontak", "penerima"]):
-            action = "add" if "add" in last_msg or "tambah" in last_msg else "list"
-            res_str, act_type, act_data = await self.execute_tool("manage_beneficiaries", {
-                "action": action,
-                "nickname": "Sarah Smith",
-                "account_number": "ACC-83920194",
-                "bank_name": "AURA Core Bank"
-            }, auth_token)
-            return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["manage_beneficiaries"])
-
-        res_str, act_type, act_data = await self.execute_tool("manage_beneficiaries", {"action": "list"}, auth_token)
-        return ChatResponse(reply=res_str, action_type=act_type, action_data=act_data, tools_used=["manage_beneficiaries"])
 
 
 class SupportFaqSubAgent(BaseSubAgent):
@@ -278,10 +111,7 @@ class SupportFaqSubAgent(BaseSubAgent):
         super().__init__(
             name="SupportFaqSubAgent",
             domain="support",
-            system_prompt=(
-                "You are Nova's Bank Policy & Knowledge Store Sub-Agent. You answer general banking questions, "
-                "interest rates, security policies, wire fees, and customer support inquiries."
-            )
+            prompt_file="support_faq_agent.md"
         )
 
     async def get_tools(self) -> List[Dict[str, Any]]:
@@ -305,14 +135,51 @@ class SupportFaqSubAgent(BaseSubAgent):
         res_text = faq_repository.search(query, n_results=3)
         return res_text, None, None
 
-    async def fallback_run(self, messages: List[ChatMessage], auth_token: Optional[str] = None) -> ChatResponse:
-        last_raw = messages[-1].content if messages else ""
-        res_str, _, _ = await self.execute_tool("search_bank_faq", {"query": last_raw}, auth_token)
-        reply = f"Bank Knowledge Base results:\n\n{res_str}"
-        return ChatResponse(reply=reply, action_type=None, action_data=None, tools_used=["search_bank_faq"])
+    async def run(
+        self,
+        messages: List[ChatMessage],
+        auth_token: Optional[str] = None,
+        openai_client: Optional[AsyncOpenAI] = None,
+        model: Optional[str] = None
+    ) -> ChatResponse:
+        last_msg = messages[-1].content if messages else ""
+
+        # 1. Query Redis RAG Answer Cache for fast sub-millisecond retrieval
+        cached = await rag_cache_service.get_cached_answer(last_msg)
+        if cached and cached.get("reply"):
+            logger.info(f"⚡ Returning Redis cached RAG answer for query: '{last_msg}'")
+            return ChatResponse(
+                reply=cached["reply"],
+                action_type=cached.get("action_type"),
+                action_data=cached.get("action_data"),
+                tools_used=cached.get("tools_used") or ["search_bank_faq (redis_semantic_cached)"]
+            )
+
+        # 2. Execute standard multi-turn ReAct loop with LLM & ChromaDB
+        response = await super().run(messages, auth_token, openai_client, model)
+
+        # 3. Store valid answer in Redis RAG cache on success
+        if response and response.reply and not response.reply.startswith("⚠️"):
+            tools = response.tools_used or ["search_bank_faq"]
+            await rag_cache_service.set_cached_answer(
+                query=last_msg,
+                reply=response.reply,
+                action_type=response.action_type,
+                action_data=response.action_data,
+                tools_used=tools
+            )
+
+        return response
 
 
 class AgentService:
+    """
+    Supervisor Multi-Agent Orchestrator.
+    - LLM-driven intent classification (NO hardcoded keywords).
+    - Routes to specialized domain SubAgents (Transaction, Identity, Security, Wealth, SupportFaq).
+    - Integrated with Redis Semantic & Exact Cache.
+    """
+
     def __init__(self):
         self.tx_agent = TransactionSubAgent()
         self.id_agent = IdentitySubAgent()
@@ -320,22 +187,60 @@ class AgentService:
         self.wlt_agent = WealthSubAgent()
         self.faq_agent = SupportFaqSubAgent()
 
-    def _classify_intent(self, message: str) -> str:
-        msg = message.lower()
+    async def _classify_intent_llm(
+        self,
+        messages: List[ChatMessage],
+        openai_client: Optional[AsyncOpenAI],
+        model_override: Optional[str] = None
+    ) -> str:
+        """
+        Model-driven intent routing: Uses LLM to decide which SubAgent domain should handle the request.
+        """
+        if not openai_client or not messages:
+            return "TRANSACTION"
 
-        if any(w in msg for w in ["profile", "kyc", "address to", "change address", "update address", "passport", "who am i", "my details", "identity"]):
-            return "IDENTITY"
+        router_system_prompt = load_prompt("supervisor_router.md") or (
+            "You are Nova Bank's Supervisor Orchestrator. Classify the user inquiry into exactly ONE domain:\n"
+            "- TRANSACTION: For checking balances, wire transfers, transactions, statements, opening accounts.\n"
+            "- IDENTITY: For viewing profile, updating address, and KYC documents.\n"
+            "- SECURITY: For card locking/freezing, unfreezing, and daily transfer limits.\n"
+            "- WEALTH: For currency conversion (forex), loan calculations, and beneficiaries.\n"
+            "- SUPPORT: For bank policies, fee rules, APY rates, and FAQ search.\n\n"
+            "Return ONLY the single uppercase domain word: TRANSACTION, IDENTITY, SECURITY, WEALTH, or SUPPORT."
+        )
 
-        if any(w in msg for w in ["freeze", "lock", "block", "unfreeze", "unlock", "unblock", "spending limit", "transfer limit", "daily limit", "set limit"]):
-            return "SECURITY"
+        try:
+            latest_user_text = messages[-1].content if messages else ""
+            context = [
+                {"role": "system", "content": router_system_prompt},
+                {"role": "user", "content": f"Classify this user request into ONE domain:\n\"{latest_user_text}\""}
+            ]
 
-        if any(w in msg for w in ["convert", "exchange", "rate", "forex", "loan", "mortgage", "installment", "beneficiar", "saved payee", "trusted contact", "my payees", "add payee"]):
-            return "WEALTH"
+            choice, successful_model, err = await model_fallback.execute_completion(
+                openai_client=openai_client,
+                messages=context,
+                temperature=0.0,
+                model_override=model_override
+            )
 
-        if any(w in msg for w in ["fee", "interest", "apy", "policy", "fdic", "wire fee", "swift", "international", "help", "faq"]):
-            return "SUPPORT"
+            if choice and choice.content:
+                domain_raw = choice.content.strip().upper()
+                tokens = [t.strip(",.:;!?()[]{}'\"") for t in domain_raw.split()]
+                for valid_domain in ["WEALTH", "SECURITY", "IDENTITY", "SUPPORT", "TRANSACTION"]:
+                    if valid_domain in tokens:
+                        logger.info(f"🧠 [LLM Supervisor Router] Classified user message to SubAgent: '{valid_domain}' (via {successful_model})")
+                        return valid_domain
+                for valid_domain in ["WEALTH", "SECURITY", "IDENTITY", "SUPPORT", "TRANSACTION"]:
+                    if valid_domain in domain_raw:
+                        logger.info(f"🧠 [LLM Supervisor Router] Classified user message to SubAgent: '{valid_domain}' (via {successful_model})")
+                        return valid_domain
+
+        except Exception as e:
+            logger.warning(f"[LLM Supervisor Router] Routing fallback: {e}")
 
         return "TRANSACTION"
+
+
 
     async def process_chat(
         self,
@@ -344,27 +249,55 @@ class AgentService:
         api_key_override: Optional[str] = None,
         model_override: Optional[str] = None
     ) -> ChatResponse:
-        api_key = api_key_override or settings.OPENROUTER_API_KEY
-        model_name = model_override or settings.OPENROUTER_MODEL
         last_msg = messages[-1].content if messages else ""
 
-        openai_client = None
-        if api_key and api_key.strip() and api_key != "YOUR_OPENROUTER_API_KEY_HERE":
-            try:
-                openai_client = AsyncOpenAI(
-                    base_url="https://openrouter.ai/api/v1",
-                    api_key=api_key.strip(),
-                    default_headers={
-                        "HTTP-Referer": "http://localhost:5173",
-                        "X-Title": "Antigravity Bank AI Assistant",
-                    }
+        # 1. Global Fast-Path: Check Redis Exact & Semantic Cache (0-4 ms)
+        cached = await rag_cache_service.get_cached_answer(last_msg)
+        if cached and cached.get("reply"):
+            logger.info(f"⚡ [Redis Cache HIT] Returning cached answer for query: '{last_msg}'")
+            return ChatResponse(
+                reply=cached["reply"],
+                action_type=cached.get("action_type"),
+                action_data=cached.get("action_data"),
+                tools_used=cached.get("tools_used") or ["search_bank_faq (redis_semantic_cached)"]
+            )
+
+        api_key = api_key_override or settings.OPENROUTER_API_KEY
+        model_name = model_override
+
+        # Validate selected model from user against active database models
+        if model_name and model_name.strip():
+            db_models = await model_fallback.fetch_models_from_db()
+            if db_models and model_name.strip() not in db_models:
+                return ChatResponse(
+                    reply=f"⚠️ Error: Selected AI model '{model_name.strip()}' is not registered or active in the database. Please select a valid model in settings.",
+                    action_type=None,
+                    action_data=None,
+                    tools_used=[]
                 )
-            except Exception as e:
-                logger.error(f"Error initializing OpenAI client: {e}")
 
-        domain = self._classify_intent(last_msg)
-        logger.info(f"Supervisor Orchestrator routed message to SubAgent domain '{domain}'")
+        if not api_key or not api_key.strip() or api_key == "YOUR_OPENROUTER_API_KEY_HERE":
+            return ChatResponse(
+                reply="⚠️ AI Service is offline or OpenRouter API key is not configured. Please configure an API key in settings or verify server environment variables.",
+                action_type=None,
+                action_data=None,
+                tools_used=[]
+            )
 
+        openai_client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key.strip(),
+            timeout=15.0,
+            default_headers={
+                "HTTP-Referer": "http://localhost:5173",
+                "X-Title": "Antigravity Bank AI Assistant",
+            }
+        )
+
+        # 2. LLM Supervisor decides which SubAgent handles the inquiry
+        domain = await self._classify_intent_llm(messages, openai_client, model_name)
+
+        # 3. Delegate to the chosen SubAgent
         if domain == "IDENTITY":
             return await self.id_agent.run(messages, auth_token, openai_client, model_name)
         elif domain == "SECURITY":
@@ -376,4 +309,7 @@ class AgentService:
         else:
             return await self.tx_agent.run(messages, auth_token, openai_client, model_name)
 
+
 agent_service = AgentService()
+
+

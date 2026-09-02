@@ -175,6 +175,10 @@ export const bankingApi = {
 
 
 export const aiAssistantApi = {
+  getAvailableModels: async () => {
+    const res = await aiClient.get('/models');
+    return res.data;
+  },
   sendChat: async (messages, apiKey = '', model = '') => {
     const payload = {
       messages,
@@ -184,7 +188,17 @@ export const aiAssistantApi = {
     const res = await aiClient.post('/chat', payload);
     return res.data;
   },
+  resetSession: async () => {
+    const res = await aiClient.delete('/session');
+    return res.data;
+  },
+  getSessionHistory: async () => {
+    const res = await aiClient.get('/session/history');
+    return res.data;
+  },
 };
+
+
 
 export const ragAdminApi = {
   listDocuments: async () => {
@@ -223,4 +237,25 @@ export const ragAdminApi = {
     return res.data;
   },
 };
+
+export const adminModelApi = {
+  listModels: async () => {
+    const res = await coreClient.get('/admin/ai/models');
+    return res.data;
+  },
+  createModel: async (modelData) => {
+    const res = await coreClient.post('/admin/ai/models', modelData);
+    return res.data;
+  },
+  updateModel: async (id, modelData) => {
+    const res = await coreClient.put(`/admin/ai/models/${id}`, modelData);
+    return res.data;
+  },
+  deleteModel: async (id) => {
+    const res = await coreClient.delete(`/admin/ai/models/${id}`);
+    return res.data;
+  },
+};
+
+
 

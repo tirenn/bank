@@ -26,34 +26,15 @@ export const Navbar = ({ onOpenAiChat, currentView = 'banking', onViewChange }) 
             </div>
           </div>
 
-          {/* Admin Navigation Selector (Desktop) */}
+          {/* Admin Navigation Indicator (Desktop) */}
           {isAdmin && (
-            <div className="hidden md:flex items-center space-x-1 p-1 rounded-lg bg-black/40 border border-white/[0.06] text-xs">
-              <button
-                onClick={() => onViewChange && onViewChange('banking')}
-                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer flex items-center space-x-1.5 ${
-                  currentView === 'banking'
-                    ? 'bg-white text-slate-950 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <CreditCard className="h-3 w-3" />
-                <span>Banking View</span>
-              </button>
-              <button
-                onClick={() => onViewChange && onViewChange('admin')}
-                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer flex items-center space-x-1.5 ${
-                  currentView === 'admin'
-                    ? 'bg-emerald-500 text-slate-950 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Database className="h-3 w-3" />
-                <span>RAG Management</span>
-              </button>
+            <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
+              <Database className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="text-emerald-400 font-semibold font-mono text-[11px]">RAG Vector Store & AI Console</span>
             </div>
           )}
         </div>
+
 
         {/* Right Nav actions */}
         <div className="flex items-center space-x-2 sm:space-x-4">
@@ -121,40 +102,12 @@ export const Navbar = ({ onOpenAiChat, currentView = 'banking', onViewChange }) 
           )}
 
           {isAdmin && (
-            <div className="space-y-1.5">
-              <span className="text-[10px] uppercase font-mono text-slate-500 block px-1">Switch View</span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => {
-                    if (onViewChange) onViewChange('banking');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-colors flex items-center space-x-2 ${
-                    currentView === 'banking'
-                      ? 'bg-white text-slate-950 font-semibold'
-                      : 'bg-black/30 border-white/[0.08] text-slate-300'
-                  }`}
-                >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  <span>Banking</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (onViewChange) onViewChange('admin');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-colors flex items-center space-x-2 ${
-                    currentView === 'admin'
-                      ? 'bg-emerald-500 text-slate-950 font-semibold'
-                      : 'bg-black/30 border-white/[0.08] text-slate-300'
-                  }`}
-                >
-                  <Database className="h-3.5 w-3.5" />
-                  <span>RAG Console</span>
-                </button>
-              </div>
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400 flex items-center space-x-2">
+              <Database className="h-3.5 w-3.5" />
+              <span>RAG Vector Management Console</span>
             </div>
           )}
+
         </div>
       )}
     </header>

@@ -185,7 +185,25 @@ func (s *AccountService) UpdateStatus(ctx context.Context, userID uint64, req *d
 	var acc *domain.Account
 	var err error
 
-	if req.AccountID > 0 {
+	if req.AccountNumber != "" || req.CardNumber != "" {
+		accounts, listErr := s.accountRepo.ListByUserID(ctx, userID)
+		if listErr != nil {
+			return nil, listErr
+		}
+		cleanTargetCard := strings.ReplaceAll(strings.ReplaceAll(req.CardNumber, " ", ""), "-", "")
+		for i := range accounts {
+			a := &accounts[i]
+			cleanCard := strings.ReplaceAll(strings.ReplaceAll(a.CardNumber, " ", ""), "-", "")
+			if req.AccountNumber != "" && strings.EqualFold(a.AccountNumber, strings.TrimSpace(req.AccountNumber)) {
+				acc = a
+				break
+			}
+			if cleanTargetCard != "" && (cleanCard == cleanTargetCard || strings.HasSuffix(cleanCard, cleanTargetCard)) {
+				acc = a
+				break
+			}
+		}
+	} else if req.AccountID > 0 {
 		acc, err = s.accountRepo.FindByID(ctx, req.AccountID)
 		if err == nil && acc != nil && acc.UserID != userID {
 			return nil, errors.New("access denied for this account")
@@ -226,7 +244,25 @@ func (s *AccountService) UpdateLimits(ctx context.Context, userID uint64, req *d
 	var acc *domain.Account
 	var err error
 
-	if req.AccountID > 0 {
+	if req.AccountNumber != "" || req.CardNumber != "" {
+		accounts, listErr := s.accountRepo.ListByUserID(ctx, userID)
+		if listErr != nil {
+			return nil, listErr
+		}
+		cleanTargetCard := strings.ReplaceAll(strings.ReplaceAll(req.CardNumber, " ", ""), "-", "")
+		for i := range accounts {
+			a := &accounts[i]
+			cleanCard := strings.ReplaceAll(strings.ReplaceAll(a.CardNumber, " ", ""), "-", "")
+			if req.AccountNumber != "" && strings.EqualFold(a.AccountNumber, strings.TrimSpace(req.AccountNumber)) {
+				acc = a
+				break
+			}
+			if cleanTargetCard != "" && (cleanCard == cleanTargetCard || strings.HasSuffix(cleanCard, cleanTargetCard)) {
+				acc = a
+				break
+			}
+		}
+	} else if req.AccountID > 0 {
 		acc, err = s.accountRepo.FindByID(ctx, req.AccountID)
 		if err == nil && acc != nil && acc.UserID != userID {
 			return nil, errors.New("access denied for this account")
@@ -256,6 +292,7 @@ func (s *AccountService) UpdateLimits(ctx context.Context, userID uint64, req *d
 
 	return acc, nil
 }
+
 
 
 
