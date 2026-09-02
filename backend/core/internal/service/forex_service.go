@@ -9,37 +9,47 @@ import (
 	"bank-core/internal/domain"
 )
 
-type ForexService struct{}
-
-func NewForexService() domain.ForexService {
-	return &ForexService{}
+// ForexService implements domain.ForexService using domain.ForexRateProvider.
+type ForexService struct {
+	rateProvider domain.ForexRateProvider
 }
 
-// Fixed baseline rates relative to USD (1.00 USD)
-var baseRatesToUSD = map[string]float64{
-	"USD": 1.00,
-	"EUR": 0.92,
-	"GBP": 0.79,
-	"JPY": 154.20,
-	"SGD": 1.34,
-	"IDR": 15850.00,
-	"CAD": 1.36,
-	"AUD": 1.52,
-	"CHF": 0.88,
+// NewForexService initializes Forex usecase with an injected rate provider.
+func NewForexService(rateProvider domain.ForexRateProvider) domain.ForexService {
+	return &ForexService{
+		rateProvider: rateProvider,
+	}
 }
 
 func (s *ForexService) Convert(ctx context.Context, req *domain.ForexConvertRequest) (*domain.ForexConvertResponse, error) {
 	from := strings.ToUpper(strings.TrimSpace(req.FromCurrency))
 	to := strings.ToUpper(strings.TrimSpace(req.ToCurrency))
 
-	fromRate, fromOk := baseRatesToUSD[from]
-	toRate, toOk := baseRatesToUSD[to]
+	if from == "" || to == "" {
+		return nil, fmt.Errorf("both from and to currency codes are required")
+	}
+
+	if req.Amount <= 0 {
+		return nil, fmt.Errorf("conversion amount must be greater than zero")
+	}
+
+	rates, err := s.rateProvider.GetRates(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve exchange rates: %w", err)
+	}
+
+	fromRate, fromOk := rates[from]
+	toRate, toOk := rates[to]
 
 	if !fromOk {
 		return nil, fmt.Errorf("unsupported source currency: %s", from)
 	}
 	if !toOk {
 		return nil, fmt.Errorf("unsupported target currency: %s", to)
+	}
+
+	if fromRate <= 0 {
+		fromRate = 1.0
 	}
 
 	// 1 unit of from in USD = 1 / fromRate

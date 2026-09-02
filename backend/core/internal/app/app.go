@@ -11,7 +11,9 @@ import (
 
 	"bank-core/internal/config"
 	"bank-core/internal/database"
+	"bank-core/internal/gateway"
 	"bank-core/internal/handler"
+
 	"bank-core/internal/logger"
 	"bank-core/internal/mcp"
 	"bank-core/internal/repository"
@@ -80,8 +82,11 @@ func Run() error {
 	accountService := service.NewAccountService(accountRepo, userRepo)
 	transferService := service.NewTransferService(txRepo, accountRepo)
 	beneficiaryService := service.NewBeneficiaryService(beneficiaryRepo)
-	forexService := service.NewForexService()
+	forexGateway := gateway.NewForexGateway(cfg.ForexAPIURL, rdb)
+	forexService := service.NewForexService(forexGateway)
 	loanService := service.NewLoanService()
+
+
 	aiModelService := service.NewAIModelService(aiModelRepo)
 
 	authHandler := handler.NewAuthHandler(authService)

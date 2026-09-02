@@ -10,6 +10,10 @@ build:
 test:
 	go test -v -race ./...
 
+test-e2e:
+	docker exec bank-ai python -m tests.e2e.runner
+
+
 migrate-up:
 	go run github.com/pressly/goose/v3/cmd/goose -dir migrations postgres "postgres://postgres_user111:password123!!!@localhost:5432/bank_db?sslmode=disable" up
 

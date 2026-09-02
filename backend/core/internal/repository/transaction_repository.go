@@ -202,7 +202,7 @@ func (r *GormTransactionRepository) ExecuteTransfer(ctx context.Context, fromAcc
 		}
 
 		now := time.Now()
-		refNumber := fmt.Sprintf("TRF-%d-%04d", now.UnixNano(), now.Nanosecond()%10000)
+		refBase := fmt.Sprintf("TRF-%d-%04d", now.UnixNano(), now.Nanosecond()%10000)
 		if category == "" {
 			category = "Transfer"
 		}
@@ -216,7 +216,7 @@ func (r *GormTransactionRepository) ExecuteTransfer(ctx context.Context, fromAcc
 			Category:               category,
 			CounterpartyAccountNum: recipient.AccountNumber,
 			CounterpartyName:       recipientUser.FullName,
-			ReferenceNumber:        refNumber,
+			ReferenceNumber:        refBase + "-OUT",
 			CreatedAt:              now,
 		}
 		if err := tx.Create(&senderTxRecord).Error; err != nil {
@@ -232,12 +232,13 @@ func (r *GormTransactionRepository) ExecuteTransfer(ctx context.Context, fromAcc
 			Category:               category,
 			CounterpartyAccountNum: sender.AccountNumber,
 			CounterpartyName:       senderUser.FullName,
-			ReferenceNumber:        refNumber,
+			ReferenceNumber:        refBase + "-IN",
 			CreatedAt:              now,
 		}
 		if err := tx.Create(&recipientTxRecord).Error; err != nil {
 			return fmt.Errorf("failed to record recipient transaction: %w", err)
 		}
+
 
 		return nil
 	})

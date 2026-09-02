@@ -20,10 +20,17 @@ test-core:
 	cd backend/core && go test -v -race ./...
 
 # ==============================================================================
+# End-to-End (E2E) Non-AI Core Banking Test Suite
+# ==============================================================================
+test-e2e:
+	docker exec bank-ai python -m tests.e2e.runner
+
+# ==============================================================================
 # AI Service Evaluation Harness (3-Layer Quality, Security & Tool Calling)
 # ==============================================================================
 eval-ai:
 	docker exec bank-ai python -m tests.evals.runner
+
 
 eval-tools:
 	docker exec bank-ai python -c "import asyncio; from tests.evals.test_tool_calling import tool_evaluator; asyncio.run(tool_evaluator.eval_deterministic_tools())"

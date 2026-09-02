@@ -16,6 +16,7 @@ type Config struct {
 	RateLimitReq      int    `mapstructure:"RATE_LIMIT_REQUESTS"`
 	RateLimitWin      int    `mapstructure:"RATE_LIMIT_WINDOW_SEC"`
 	Environment       string `mapstructure:"ENVIRONMENT"`
+	ForexAPIURL       string `mapstructure:"FOREX_API_URL"`
 }
 
 func Load() (*Config, error) {
@@ -29,6 +30,8 @@ func Load() (*Config, error) {
 	v.SetDefault("RATE_LIMIT_REQUESTS", 60)
 	v.SetDefault("RATE_LIMIT_WINDOW_SEC", 60)
 	v.SetDefault("ENVIRONMENT", "development")
+	v.SetDefault("FOREX_API_URL", "https://open.er-api.com/v6/latest/USD")
+
 
 
 	v.SetConfigFile(".env")

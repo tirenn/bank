@@ -7,8 +7,12 @@ run:
 test:
 	pytest -v
 
+test-e2e:
+	python -m tests.e2e.runner
+
 eval-ai:
 	python -m tests.evals.runner
+
 
 lint:
 	flake8 app/

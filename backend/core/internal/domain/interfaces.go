@@ -67,6 +67,11 @@ type TransferService interface {
 }
 
 
+// ForexRateProvider defines interface for fetching live and cached currency exchange rates from external gateways
+type ForexRateProvider interface {
+	GetRates(ctx context.Context) (map[string]float64, error)
+}
+
 // ForexService defines currency conversion and exchange operations
 type ForexService interface {
 	Convert(ctx context.Context, req *ForexConvertRequest) (*ForexConvertResponse, error)
@@ -76,5 +81,6 @@ type ForexService interface {
 type LoanService interface {
 	Calculate(ctx context.Context, req *LoanCalculateRequest) (*LoanCalculateResponse, error)
 }
+
 
 
