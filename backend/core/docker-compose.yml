@@ -1,0 +1,19 @@
+﻿version: '3.8'
+
+services:
+  bank-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bank-core
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8085}:${PORT:-8085}"
+    networks:
+      - tirenn-net
+
+networks:
+  tirenn-net:
+    external: true

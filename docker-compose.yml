@@ -1,0 +1,50 @@
+﻿version: '3.8'
+
+services:
+  bank-core:
+    build:
+      context: ./backend/core
+      dockerfile: Dockerfile
+    container_name: bank-core
+    restart: always
+    env_file:
+      - ./backend/core/.env
+    ports:
+      - "8085:8085"
+    networks:
+      - tirenn-net
+
+  bank-ai:
+    build:
+      context: ./backend/ai-service
+      dockerfile: Dockerfile
+    container_name: bank-ai
+    restart: always
+    env_file:
+      - ./backend/ai-service/.env
+    ports:
+      - "8005:8005"
+    depends_on:
+      - bank-core
+    networks:
+      - tirenn-net
+
+  bank-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bank-frontend
+    restart: always
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "5173:80"
+    depends_on:
+      - bank-core
+      - bank-ai
+    networks:
+      - tirenn-net
+
+networks:
+  tirenn-net:
+    external: true

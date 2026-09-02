@@ -1,0 +1,60 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+
+from app.config import settings
+from app.logger import setup_logger, app_logger
+from app.middleware import RequestIDMiddleware, RedisSlidingWindowRateLimiter
+from app.services.faq_service import faq_service
+from app.api.v1.router import api_v1_router
+
+# Initialize Redis sliding window rate limiter
+rate_limiter = RedisSlidingWindowRateLimiter(
+    redis_url=settings.REDIS_URL,
+    max_requests=60,
+    window_sec=60
+)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_logger(service_name="bank-ai", environment=settings.ENVIRONMENT)
+    app_logger.info("Initializing ChromaDB FAQ Knowledge Base and Redis rate limiter...")
+    faq_service.seed()
+    await rate_limiter.connect()
+    yield
+
+app = FastAPI(
+    title="Banking AI Microservice",
+    description="Clean Architecture AI Microservice with Private MCP, Multi-Agent Orchestration, and ChromaDB Vector RAG",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Cross-cutting middlewares
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health", tags=["Health"])
+async def health():
+    return {
+        "status": "healthy",
+        "service": "bank-ai-microservice",
+        "architecture": "clean-architecture-domain-driven",
+        "chroma_connected": faq_service.repo.collection is not None,
+        "default_model": settings.OPENROUTER_MODEL,
+        "rate_limiter": "redis-sliding-window",
+        "environment": settings.ENVIRONMENT
+    }
+
+# Register V1 API Routes
+app.include_router(api_v1_router)
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=True)

@@ -1,0 +1,19 @@
+﻿version: '3.8'
+
+services:
+  bank-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bank-ai
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8005}:${PORT:-8005}"
+    networks:
+      - tirenn-net
+
+networks:
+  tirenn-net:
+    external: true

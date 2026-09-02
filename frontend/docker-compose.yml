@@ -1,0 +1,19 @@
+﻿version: '3.8'
+
+services:
+  bank-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bank-frontend
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-5173}:80"
+    networks:
+      - tirenn-net
+
+networks:
+  tirenn-net:
+    external: true
