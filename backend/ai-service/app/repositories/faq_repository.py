@@ -286,6 +286,37 @@ class FAQRepository:
             logger.error(f"Error deleting batch {batch_id}: {e}")
             return 0
 
+    def search_raw(self, query: str, n_results: int = 10) -> List[Dict[str, Any]]:
+        """
+        Executes raw vector query against ChromaDB returning structured chunk dicts.
+        Used by the Hybrid RAG pipeline for Reciprocal Rank Fusion.
+        """
+        if not self.collection:
+            return []
+
+        try:
+            results = self.collection.query(
+                query_texts=[query],
+                n_results=n_results
+            )
+            docs = results.get("documents", [[]])[0]
+            ids = results.get("ids", [[]])[0] if results.get("ids") else []
+            metadatas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
+            distances = results.get("distances", [[]])[0] if results.get("distances") else []
+
+            items = []
+            for i in range(len(docs)):
+                items.append({
+                    "id": ids[i] if i < len(ids) else f"doc_{i}",
+                    "document": docs[i],
+                    "metadata": metadatas[i] if i < len(metadatas) and metadatas[i] else {},
+                    "distance": distances[i] if i < len(distances) else None,
+                })
+            return items
+        except Exception as e:
+            logger.error(f"Error searching ChromaDB search_raw: {e}")
+            return []
+
     def search(self, query: str, n_results: int = 3) -> str:
         if not self.collection:
             return "Knowledge base currently unavailable."

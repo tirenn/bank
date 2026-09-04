@@ -72,18 +72,8 @@ class SupportFaqSubAgent(BaseSubAgent):
         if tool_name == "search_bank_faq":
             query = arguments.get("query", "")
             top_k = arguments.get("top_k", 3)
-            results = await faq_repository.search(query=query, n_results=top_k)
-
-            if not results:
-                return "No matching FAQ articles found in knowledge base.", None, None
-
-            # Format search matches into structured markdown for LLM synthesis
-            formatted_chunks = [
-                f"### [FAQ Match {i+1}] {item.get('metadata', {}).get('question', 'Q&A')}\n"
-                f"Category: {item.get('metadata', {}).get('category', 'general')}\n"
-                f"{item.get('document', '')}"
-                for i, item in enumerate(results)
-            ]
-            return "\n\n".join(formatted_chunks), None, None
+            # Delegate to the 5-stage Hybrid Search, RRF, and Deduplication pipeline
+            from app.services.rag_pipeline_service import rag_pipeline_service
+            return await rag_pipeline_service.search_and_format(query=query, top_k_final=top_k)
 
         return f"Unknown FAQ tool: {tool_name}", None, None
