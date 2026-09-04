@@ -5,6 +5,7 @@ import { X, Send, Bot, User, Settings, ArrowRight, CheckCircle2, RefreshCw, Key,
 import { aiAssistantApi, bankingApi, DEFAULT_TRANSFER_OTP } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { copyToClipboard } from '../utils/clipboard';
+import { formatHumanReadableError } from '../utils/formatError';
 
 
 
@@ -69,21 +70,6 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
     }
   }, [externalPrompt]);
 
-  // Lock background body scroll and touch chaining when chat window is open on mobile
-  useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      const originalTouchAction = document.body.style.touchAction;
-
-      document.body.style.overflow = 'hidden';
-
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        document.body.style.touchAction = originalTouchAction;
-      };
-    }
-  }, [isOpen]);
-
 
   const handleSend = async (userText) => {
     const textToSend = (userText || input).trim();
@@ -118,12 +104,12 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
 
     } catch (err) {
       console.error('AI Chat Error:', err);
-      const serverDetail = err.response?.data?.detail || err.response?.data?.error || err.message;
+      const serverDetail = formatHumanReadableError(err, 'Unable to reach Tirenn AI microservice. Ensure Python backend is active.');
       setMessages([
         ...newMessages,
         {
           role: 'assistant',
-          content: `⚠️ **AI Service Notice:** ${serverDetail || 'Unable to reach Tirenn AI microservice. Ensure Python backend is active.'}`,
+          content: `⚠️ **AI Service Notice:** ${serverDetail}`,
         },
       ]);
 
@@ -134,7 +120,18 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
 
 
   const handleConfirmTransfer = async (draft, msgIndex) => {
-    const otpToUse = (transferOtp[msgIndex] !== undefined ? transferOtp[msgIndex] : DEFAULT_TRANSFER_OTP).trim();
+    const otpToUse = String(transferOtp[msgIndex] || '').trim();
+    if (!otpToUse || otpToUse.length !== 6) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `❌ **Transfer Authorization Failed:** Please enter the 6-digit confirmation OTP code into the card above before dispatching.`,
+        },
+      ]);
+      return;
+    }
+
     setExecutingTransfer(true);
     try {
       await bankingApi.transfer(
@@ -142,7 +139,8 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
         draft.amount_dollars,
         draft.description,
         draft.category || 'Transfer',
-        otpToUse
+        otpToUse,
+        draft.from_account_id
       );
       setTransferStatus((prev) => ({ ...prev, [msgIndex]: 'SUCCESS' }));
       await refreshAccount();
@@ -161,7 +159,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
         ...prev,
         {
           role: 'assistant',
-          content: `❌ **Transfer Failed:** ${err.response?.data?.error || 'Execution halted.'}`,
+          content: `❌ **Transfer Failed:** ${formatHumanReadableError(err, 'Execution halted. Please check your inputs and try again.')}`,
         },
       ]);
     } finally {
@@ -498,7 +496,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
                       <input
                         type="text"
                         maxLength={6}
-                        value={transferOtp[idx] !== undefined ? transferOtp[idx] : DEFAULT_TRANSFER_OTP}
+                        value={transferOtp[idx] || ''}
                         onChange={(e) => setTransferOtp((prev) => ({ ...prev, [idx]: e.target.value }))}
                         placeholder="Enter 6-digit OTP"
                         className="w-full px-2 py-1 bg-black/50 border border-amber-500/30 rounded text-amber-200 text-xs font-mono tracking-widest text-center focus:outline-none focus:border-amber-400"

@@ -38,13 +38,45 @@ func (s *TransferService) Transfer(ctx context.Context, userID uint64, req *doma
 		}
 	}
 
-	fromAcc, err := s.accountRepo.FindByUserID(ctx, userID)
-	if err != nil {
-		logger.Error(ctx, "Failed to resolve sender account", err, map[string]interface{}{"user_id": userID})
-		return nil, err
+	var fromAcc *domain.Account
+	var err error
+
+	if req.FromAccountID != nil && *req.FromAccountID > 0 {
+		fromAcc, err = s.accountRepo.FindByID(ctx, *req.FromAccountID)
+		if err != nil {
+			logger.Error(ctx, "Failed to resolve specified sender account", err, map[string]interface{}{
+				"user_id":    userID,
+				"account_id": *req.FromAccountID,
+			})
+			return nil, err
+		}
+		if fromAcc == nil || fromAcc.UserID != userID {
+			return nil, errors.New("source account not found or access denied")
+		}
+	} else {
+		userAccounts, listErr := s.accountRepo.ListByUserID(ctx, userID)
+		if listErr != nil {
+			return nil, listErr
+		}
+		// First pass: find an ACTIVE account
+		for i := range userAccounts {
+			if userAccounts[i].Status == "ACTIVE" {
+				fromAcc = &userAccounts[i]
+				break
+			}
+		}
+		// Fallback: pick the first account if none is ACTIVE
+		if fromAcc == nil {
+			if len(userAccounts) > 0 {
+				fromAcc = &userAccounts[0]
+			} else {
+				return nil, errors.New("no source account found for this user")
+			}
+		}
 	}
-	if fromAcc == nil {
-		return nil, errors.New("sender account not found")
+
+	if fromAcc.Status != "ACTIVE" {
+		return nil, errors.New("selected source account is not active")
 	}
 
 	if req.AmountCents <= 0 {

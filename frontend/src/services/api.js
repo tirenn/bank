@@ -89,15 +89,19 @@ export const bankingApi = {
     return res.data;
   },
 
-  transfer: async (toAccountNumber, amountDollars, description, category = 'Transfer', otp = '') => {
+  transfer: async (toAccountNumber, amountDollars, description, category = 'Transfer', otp = '', fromAccountId = null) => {
     const amountCents = Math.round(amountDollars * 100);
-    const res = await coreClient.post('/transfers', {
+    const payload = {
       to_account_number: toAccountNumber,
       amount_cents: amountCents,
       description: description || 'Transfer',
       category: category,
-      otp: otp ? String(otp).trim() : DEFAULT_TRANSFER_OTP,
-    });
+      otp: String(otp || '').trim(),
+    };
+    if (fromAccountId) {
+      payload.from_account_id = Number(fromAccountId);
+    }
+    const res = await coreClient.post('/transfers', payload);
     return res.data;
   },
   deposit: async (amountDollars, description, category = 'Deposit') => {

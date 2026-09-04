@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Send, AlertCircle, CheckCircle2, UserCheck, ArrowRight, ShieldCheck } from 'lucide-react';
 import { bankingApi, DEFAULT_TRANSFER_OTP } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { formatHumanReadableError } from '../utils/formatError';
 
 export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const { account, refreshAccount } = useAuth();
@@ -9,7 +10,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Transfer');
-  const [otp, setOtp] = useState(DEFAULT_TRANSFER_OTP);
+  const [otp, setOtp] = useState('');
   const [recipientInfo, setRecipientInfo] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,7 +23,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
       setAmount(initialData.amount_dollars ? String(initialData.amount_dollars) : '');
       setDescription(initialData.description || 'AI Initiated Transfer');
       setCategory(initialData.category || 'Transfer');
-      setOtp(DEFAULT_TRANSFER_OTP);
+      setOtp('');
       if (initialData.to_account_number) {
         verifyRecipient(initialData.to_account_number);
       }
@@ -31,7 +32,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
       setAmount('');
       setDescription('');
       setCategory('Transfer');
-      setOtp(DEFAULT_TRANSFER_OTP);
+      setOtp('');
       setRecipientInfo(null);
       setError('');
       setSuccess(false);
@@ -47,7 +48,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
       setRecipientInfo(res);
     } catch (e) {
       setRecipientInfo(null);
-      setError('Recipient account not found. Please verify the account number.');
+      setError(formatHumanReadableError(e, 'Recipient account not found. Please verify the account number.'));
     } finally {
       setLookupLoading(false);
     }
@@ -67,7 +68,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
     }
 
     if (account && amt * 100 > account.balance_cents) {
-      setError('Insufficient funds for this transfer.');
+      setError('Insufficient balance. You do not have enough funds in this account for this transfer.');
       return;
     }
 
@@ -78,7 +79,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
 
     setLoading(true);
     try {
-      await bankingApi.transfer(toAccount.trim(), amt, description, category, otp.trim());
+      await bankingApi.transfer(toAccount.trim(), amt, description, category, otp.trim(), account?.id);
       setSuccess(true);
       await refreshAccount();
       if (onSuccess) onSuccess();
@@ -87,7 +88,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
         setSuccess(false);
       }, 1200);
     } catch (err) {
-      setError(err.response?.data?.error || 'Transfer failed. Please check inputs.');
+      setError(formatHumanReadableError(err, 'Transfer failed. Please check inputs.'));
     } finally {
       setLoading(false);
     }

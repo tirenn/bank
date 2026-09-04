@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Landmark, Shield, AlertCircle, ArrowRight, UserCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { formatHumanReadableError } from '../utils/formatError';
 
 export const AuthModal = () => {
   const { login, register } = useAuth();
@@ -22,7 +23,7 @@ export const AuthModal = () => {
         await login(email, password);
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Authentication failed. Check credentials.');
+      setError(formatHumanReadableError(err, 'Authentication failed. Please check your credentials.'));
     } finally {
       setLoading(false);
     }

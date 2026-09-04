@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Plus, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { bankingApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { formatHumanReadableError } from '../utils/formatError';
 
 export const DepositModal = ({ isOpen, onClose, onSuccess }) => {
   const { refreshAccount } = useAuth();
@@ -32,7 +33,7 @@ export const DepositModal = ({ isOpen, onClose, onSuccess }) => {
         setAmount('');
       }, 1200);
     } catch (err) {
-      setError(err.response?.data?.error || 'Deposit failed.');
+      setError(formatHumanReadableError(err, 'Deposit failed. Please try again.'));
     } finally {
       setLoading(false);
     }
