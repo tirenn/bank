@@ -1,14 +1,15 @@
-﻿services:
+services:
   bank-frontend:
     build:
       context: .
       dockerfile: Dockerfile
+    image: bank-frontend:latest
     container_name: bank-frontend
     restart: always
     env_file:
       - .env
     ports:
-      - "127.0.0.1:${PORT:-7081}:${PORT:-7081}"
+      - "${PORT:-7081}:${PORT:-7081}"
     networks:
       - tirenn-net
 

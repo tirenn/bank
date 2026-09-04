@@ -9,7 +9,7 @@ services:
     env_file:
       - ./backend/core/.env
     ports:
-      - "127.0.0.1:${BE_PORT:-8082}:${BE_PORT:-8082}"
+      - "${BE_PORT:-8082}:${BE_PORT:-8082}"
     networks:
       - tirenn-net
 
@@ -23,7 +23,7 @@ services:
     env_file:
       - ./backend/ai-service/.env
     ports:
-      - "127.0.0.1:${AI_PORT:-8083}:${AI_PORT:-8083}"
+      - "${AI_PORT:-8083}:${AI_PORT:-8083}"
     depends_on:
       - bank-core
     networks:
@@ -39,7 +39,7 @@ services:
     env_file:
       - ./frontend/.env
     ports:
-      - "127.0.0.1:${FE_PORT:-7081}:${FE_PORT:-7081}"
+      - "${FE_PORT:-7081}:${FE_PORT:-7081}"
     depends_on:
       - bank-core
       - bank-ai

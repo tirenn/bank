@@ -1,14 +1,15 @@
-﻿services:
+services:
   bank-core:
     build:
       context: .
       dockerfile: Dockerfile
+    image: bank-core:latest
     container_name: bank-core
     restart: always
     env_file:
       - .env
     ports:
-      - "127.0.0.1:${PORT:-8082}:${PORT:-8082}"
+      - "${PORT:-8082}:${PORT:-8082}"
     networks:
       - tirenn-net
 
