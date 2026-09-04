@@ -5,6 +5,7 @@ services:
     build:
       context: ./backend/core
       dockerfile: Dockerfile
+    image: bank-core:latest
     container_name: bank-core
     restart: always
     env_file:
@@ -18,6 +19,7 @@ services:
     build:
       context: ./backend/ai-service
       dockerfile: Dockerfile
+    image: bank-ai:latest
     container_name: bank-ai
     restart: always
     env_file:
@@ -33,6 +35,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: bank-frontend:latest
     container_name: bank-frontend
     restart: always
     env_file:
