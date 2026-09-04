@@ -23,8 +23,7 @@ RUN python -c "from chromadb.utils import embedding_functions; emb = embedding_f
 
 COPY . .
 
-EXPOSE 8005
+EXPOSE 8083
 
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8005"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8083}"]
 

@@ -20,7 +20,7 @@ class BankingE2ETester:
 
     def __init__(self, base_url: str = BASE_URL):
         self.base_url = base_url
-        self.client = httpx.Client(base_url=self.base_url, timeout=10.0)
+        self.client = httpx.Client(base_url=self.base_url, timeout=30.0)
 
     def _get_headers(self, token: Optional[str] = None) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}

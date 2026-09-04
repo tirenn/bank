@@ -1,0 +1,158 @@
+name: "Production Deploy to VPS (Tag Triggered)"
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-fe'
+      - 'v[0-9]+.[0-9]+.[0-9]+-be'
+      - 'v[0-9]+.[0-9]+.[0-9]+-ai'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Specify Release Tag (e.g. v1.0.0-fe, v1.0.0-be, v1.0.0-ai)'
+        required: true
+        default: 'v1.0.0-be'
+
+concurrency:
+  group: "production-deploy"
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    name: "Validate Tag & Deploy to VPS"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Validate Tag & Target Service"
+        id: parse_tag
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          echo "Evaluating tag: $TAG"
+
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-fe$ ]]; then
+            TARGET_CONTAINER="bank-frontend"
+            SERVICE_TYPE="fe"
+          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-be$ ]]; then
+            TARGET_CONTAINER="bank-core"
+            SERVICE_TYPE="be"
+          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-ai$ ]]; then
+            TARGET_CONTAINER="bank-ai"
+            SERVICE_TYPE="ai"
+          else
+            echo "::error::Deployment rejected! Tag '$TAG' does not match required format (vX.Y.Z-fe, vX.Y.Z-be, or vX.Y.Z-ai)."
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "target_container=$TARGET_CONTAINER" >> $GITHUB_OUTPUT
+          echo "service_type=$SERVICE_TYPE" >> $GITHUB_OUTPUT
+          echo "Valid release tag '$TAG' confirmed for target container: $TARGET_CONTAINER"
+
+      - name: "Verify Required SSH Secrets"
+        run: |
+          MISSING=""
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then MISSING="$MISSING SSH_HOST"; fi
+          if [ -z "${{ secrets.SSH_USER }}" ]; then MISSING="$MISSING SSH_USER"; fi
+          if [ -z "${{ secrets.SSH_KEY }}" ]; then MISSING="$MISSING SSH_KEY"; fi
+
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required GitHub Secrets: $MISSING"
+            echo "Please configure them in Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "All core SSH deployment secrets are present."
+
+      - name: "Deploy to VPS via SSH"
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          TARGET_TAG: ${{ steps.parse_tag.outputs.tag }}
+          TARGET_CONTAINER: ${{ steps.parse_tag.outputs.target_container }}
+          SERVICE_TYPE: ${{ steps.parse_tag.outputs.service_type }}
+          DEPLOY_PATH: ${{ secrets.TARGET_DIR || '/root/Projects/bank' }}
+          DOPPLER_TOKEN_BE: ${{ secrets.DOPPLER_TOKEN_BE }}
+          DOPPLER_TOKEN_AI: ${{ secrets.DOPPLER_TOKEN_AI }}
+          DOPPLER_TOKEN_FE: ${{ secrets.DOPPLER_TOKEN_FE }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: TARGET_TAG,TARGET_CONTAINER,SERVICE_TYPE,DEPLOY_PATH,DOPPLER_TOKEN_BE,DOPPLER_TOKEN_AI,DOPPLER_TOKEN_FE
+          script_stop: true
+          script: |
+            set -e
+            echo "=========================================================="
+            echo "🚀 Deploying Service [$TARGET_CONTAINER] for Tag: $TARGET_TAG"
+            echo "=========================================================="
+
+            # 1. Ensure target deployment directory exists
+            mkdir -p "$DEPLOY_PATH"
+            cd "$DEPLOY_PATH"
+
+            # 2. Check if git repository exists, otherwise initialize/clone
+            if [ ! -d ".git" ]; then
+              echo "Cloning repository..."
+              git clone "${{ github.server_url }}/${{ github.repository }}.git" .
+            fi
+
+            # 3. Fetch latest tags and checkout release tag
+            echo "Fetching tags and checking out $TARGET_TAG..."
+            git fetch --tags --all --prune
+            git checkout "$TARGET_TAG"
+
+            # 4. Ensure Doppler CLI is installed on VPS
+            if ! command -v doppler &> /dev/null; then
+              echo "Installing Doppler CLI on VPS..."
+              curl -Ls https://cli.doppler.com/install.sh | sh
+            fi
+
+            # 5. Download environment variables per service from Doppler
+            echo "Configuring service environment files via Doppler..."
+
+            if [ -n "$DOPPLER_TOKEN_BE" ]; then
+              echo "Syncing backend/core/.env from Doppler..."
+              doppler secrets download --token="$DOPPLER_TOKEN_BE" --no-file --format env > backend/core/.env
+              chmod 600 backend/core/.env
+            fi
+
+            if [ -n "$DOPPLER_TOKEN_AI" ]; then
+              echo "Syncing backend/ai-service/.env from Doppler..."
+              doppler secrets download --token="$DOPPLER_TOKEN_AI" --no-file --format env > backend/ai-service/.env
+              chmod 600 backend/ai-service/.env
+            fi
+
+            if [ -n "$DOPPLER_TOKEN_FE" ]; then
+              echo "Syncing frontend/.env from Doppler..."
+              doppler secrets download --token="$DOPPLER_TOKEN_FE" --no-file --format env > frontend/.env
+              chmod 600 frontend/.env
+            fi
+
+            # 6. Ensure external Docker network tirenn-net exists
+            docker network create tirenn-net 2>/dev/null || true
+
+            # 7. Deploy target service with clean recreation
+            echo "Building and starting container: $TARGET_CONTAINER..."
+            docker compose up -d --build --force-recreate --remove-orphans "$TARGET_CONTAINER"
+
+            # 8. Verify container status and output startup logs
+            echo "Verifying container state..."
+            sleep 4
+            docker compose ps "$TARGET_CONTAINER"
+            echo "Recent container logs:"
+            docker logs "$TARGET_CONTAINER" --tail 25
+
+            # 9. Clean up unused images and build cache (>24h)
+            echo "Cleaning up dangling Docker images and cache..."
+            docker image prune -a -f --filter "until=24h" 2>/dev/null || docker image prune -f
+            docker builder prune -f --filter "until=24h" 2>/dev/null || true
+
+            echo "=========================================================="
+            echo "✅ Deployment of $TARGET_CONTAINER ($TARGET_TAG) Completed Successfully!"
+            echo "=========================================================="

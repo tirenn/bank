@@ -1,0 +1,68 @@
+name: "AI Microservice CI / PR Checks"
+
+on:
+  pull_request:
+    paths:
+      - 'backend/ai-service/**'
+    branches:
+      - main
+      - master
+  push:
+    paths:
+      - 'backend/ai-service/**'
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: "ai-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: "AI Microservice (Syntax Check & Guardrails)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/ai-service
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python 3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/ai-service/requirements.txt
+
+      - name: "Install Python Dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "Compile Code Syntax Check"
+        run: |
+          python -m compileall app
+
+      - name: "Verify Core Module Imports"
+        run: |
+          python -c "
+          import app.config
+          import app.domain.schemas
+          import app.logger
+          import app.services.prompt_injection_guardrail
+          print('AI Microservice core modules imported successfully')
+          "
+
+      - name: "Run Prompt Injection Defense Evaluation"
+        run: |
+          python -c "
+          from tests.evals.test_prompt_injection import prompt_injection_evaluator
+          results = prompt_injection_evaluator.eval_prompt_injection()
+          failures = [r for r in results if not r[2]]
+          if failures:
+              print('Failures detected:', failures)
+              exit(1)
+          print(f'All {len(results)} prompt injection guardrail test cases passed!')
+          "

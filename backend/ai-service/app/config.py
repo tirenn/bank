@@ -6,8 +6,8 @@ load_dotenv()
 
 
 class Settings(BaseModel):
-    PORT: int = Field(default_factory=lambda: int(os.getenv("PORT", "8005")))
-    CORE_BANKING_URL: str = Field(default_factory=lambda: os.getenv("CORE_BANKING_URL", "http://bank-core:8085"))
+    PORT: int = Field(default_factory=lambda: int(os.getenv("PORT", "8083")))
+    CORE_BANKING_URL: str = Field(default_factory=lambda: os.getenv("CORE_BANKING_URL", "http://bank-core:8082"))
     INTERNAL_MCP_SECRET: str = Field(default_factory=lambda: os.getenv("INTERNAL_MCP_SECRET", ""))
     OPENROUTER_API_KEY: str = Field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
 

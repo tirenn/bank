@@ -1,0 +1,46 @@
+name: "Backend CI / PR Checks"
+
+on:
+  pull_request:
+    paths:
+      - 'backend/core/**'
+    branches:
+      - main
+      - master
+  push:
+    paths:
+      - 'backend/core/**'
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: "backend-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: "Backend (Build & Unit Tests)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/core
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Set up Go"
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          check-latest: true
+          cache-dependency-path: backend/core/go.sum
+
+      - name: "Download Go Dependencies"
+        run: go mod download
+
+      - name: "Build Backend Binary"
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o bin/server ./cmd/api
+
+      - name: "Run Backend Unit Tests"
+        run: go test -v -race ./...

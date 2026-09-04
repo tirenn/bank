@@ -1,4 +1,4 @@
-﻿version: '3.8'
+version: '3.8'
 
 services:
   bank-core:
@@ -10,7 +10,7 @@ services:
     env_file:
       - ./backend/core/.env
     ports:
-      - "8085:8085"
+      - "${BE_PORT:-8082}:${BE_PORT:-8082}"
     networks:
       - tirenn-net
 
@@ -23,7 +23,7 @@ services:
     env_file:
       - ./backend/ai-service/.env
     ports:
-      - "8005:8005"
+      - "${AI_PORT:-8083}:${AI_PORT:-8083}"
     depends_on:
       - bank-core
     networks:
@@ -38,7 +38,7 @@ services:
     env_file:
       - ./frontend/.env
     ports:
-      - "5173:80"
+      - "${FE_PORT:-7081}:${FE_PORT:-7081}"
     depends_on:
       - bank-core
       - bank-ai

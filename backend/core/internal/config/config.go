@@ -23,7 +23,7 @@ type Config struct {
 func Load() (*Config, error) {
 	v := viper.New()
 
-	v.SetDefault("PORT", "8085")
+	v.SetDefault("PORT", "8082")
 	v.SetDefault("DATABASE_URL", "postgres://postgres_user111:password123!!!@localhost:5432/bank_db?sslmode=disable")
 	v.SetDefault("JWT_SECRET", "super-secret-bank-jwt-key-change-in-prod-123456")
 	v.SetDefault("INTERNAL_MCP_SECRET", "nova-internal-mcp-secret-key-392810")

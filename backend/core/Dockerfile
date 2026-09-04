@@ -1,4 +1,4 @@
-﻿# Multi-Stage Dockerfile for Bank Core Service
+# Multi-Stage Dockerfile for Bank Core Service
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
@@ -23,6 +23,6 @@ COPY --from=builder /app/server /app/server
 COPY --from=builder /app/migrations /app/migrations
 COPY --from=builder /app/.env.example /app/.env.example
 
-EXPOSE 8085
+EXPOSE 8082
 
 CMD ["/app/server"]
