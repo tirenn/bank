@@ -35,21 +35,37 @@ def _format_context_for_log(context: List[Dict[str, Any]]) -> str:
 
 class ReActLoopHarness:
     """
-    Native ReAct (Reasoning + Acting) Loop Harness.
-    Executes a multi-turn Thought -> Action (Tool Call) -> Observation (Tool Output) -> Thought cycle
-    with comprehensive telemetry and structured logging.
+    Native ReAct (Reasoning + Acting) Loop Harness for Banking Copilot.
+    ===================================================================
+
+    What is the ReAct Pattern?
+    --------------------------
+    ReAct stands for "Reasoning + Acting". Instead of answering in one shot,
+    the AI follows an iterative cycle:
+    
+         ┌────────────────────────────────────────────────────────┐
+         │ 1. Thought:    The LLM reasons about what tool to call │
+         │       │                                                │
+         │       ▼                                                │
+         │ 2. Action:     Calls an MCP banking tool (e.g. check) │
+         │       │                                                │
+         │       ▼                                                │
+         │ 3. Observation: Receives real data back from banking   │
+         │       │                                                │
+         │       ▼                                                │
+         │ 4. Thought:    Synthesizes the final helpful answer   │
+         └────────────────────────────────────────────────────────┘
 
     Key Features:
-    - Detailed Iteration & Context Logging: Full trace of messages sent to LLM, model choice, tool calls, and observations.
-    - Iteration Guard: Prevents infinite loops via max_iterations (default 5).
-    - Message History Accumulator: Feeds tool outputs (Observations) back to LLM context for multi-step reasoning.
-    - Multi-Tool Chaining: Allows LLM to perform sequential operations (e.g. Check Balance -> Draft Transfer -> Calculate Fee).
-    - Resilient Fallback: Uses multi-model fallback executor on every step.
-    - Structured Action & UI Event Aggregation: Preserves action_type & action_data for frontend widgets.
+    - Context Logging: Full trace of messages, tool arguments, and results.
+    - Loop Guard: Prevents runaway tool execution via max_iterations (default 5).
+    - Dynamic Feedback: Feeds tool observations back into context turns.
+    - Action Cards: Extracts UI events (e.g. TRANSFER_DRAFT) for frontend rendering.
     """
 
     def __init__(self, max_iterations: int = 5):
         self.max_iterations = max_iterations
+
 
     async def execute_loop(
         self,
