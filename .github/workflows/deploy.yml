@@ -4,14 +4,15 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+-fe'
+      - 'v[0-9]+.[0-9]+.[0-9]+-core'
       - 'v[0-9]+.[0-9]+.[0-9]+-be'
       - 'v[0-9]+.[0-9]+.[0-9]+-ai'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Specify Release Tag (e.g. v1.0.0-fe, v1.0.0-be, v1.0.0-ai)'
+        description: 'Specify Release Tag (e.g. v1.0.0-fe, v1.0.0-core, v1.0.0-ai)'
         required: true
-        default: 'v1.0.0-be'
+        default: 'v1.0.0-core'
 
 concurrency:
   group: "production-deploy"
@@ -39,14 +40,14 @@ jobs:
           if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-fe$ ]]; then
             TARGET_CONTAINER="bank-frontend"
             SERVICE_TYPE="fe"
-          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-be$ ]]; then
+          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(core|be)$ ]]; then
             TARGET_CONTAINER="bank-core"
-            SERVICE_TYPE="be"
+            SERVICE_TYPE="core"
           elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-ai$ ]]; then
             TARGET_CONTAINER="bank-ai"
             SERVICE_TYPE="ai"
           else
-            echo "::error::Deployment rejected! Tag '$TAG' does not match required format (vX.Y.Z-fe, vX.Y.Z-be, or vX.Y.Z-ai)."
+            echo "::error::Deployment rejected! Tag '$TAG' does not match required format (vX.Y.Z-fe, vX.Y.Z-core, or vX.Y.Z-ai)."
             exit 1
           fi
 
