@@ -19,7 +19,7 @@
 │                          TIRENN SYSTEM TOPOLOGY                        │
 ├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
-│   [ Client Browser ] ──► [ React 19 Frontend (Port 5173) ]             │
+│   [ Client Browser ] ──► [ React 19 Frontend (Port 7081) ]             │
 │                                │                                       │
 │          ┌─────────────────────┴─────────────────────┐                 │
 │          ▼                                           ▼                 │
@@ -27,7 +27,7 @@
 │   • Golang 1.26 (Clean Arch)                • Python 3.11 (FastAPI)    │
 │   • ACID Ledger & Pessimistic Locks         • Planner Orchestrator DAG │
 │   • Decoupled Forex Gateway                 • ChromaDB Vector RAG      │
-│   • Port: 8085                              • Port: 8005               │
+│   • Port: 8082                              • Port: 8083               │
 │          │                                           │                 │
 │          ├─────────────────────┬─────────────────────┤                 │
 │          ▼                     ▼                     ▼                 │
@@ -94,9 +94,9 @@ docker compose up -d --build
 All services will start up automatically:
 | Service | URL / Port | Technology |
 | :--- | :--- | :--- |
-| **Frontend UI** | [http://localhost:5173](http://localhost:5173) | React 19 + Vite + Tailwind |
-| **Core Banking API** | [http://localhost:8085](http://localhost:8085) | Golang 1.26 + Gin + GORM |
-| **AI Microservice** | [http://localhost:8005](http://localhost:8005) | Python 3.11 + FastAPI + ChromaDB |
+| **Frontend UI** | [http://localhost:7081](http://localhost:7081) | React 19 + Vite + Tailwind |
+| **Core Banking API** | [http://localhost:8082](http://localhost:8082) | Golang 1.26 + Gin + GORM |
+| **AI Microservice** | [http://localhost:8083](http://localhost:8083) | Python 3.11 + FastAPI + ChromaDB |
 | **PostgreSQL Database** | `localhost:5432` | PostgreSQL 16 (DB: `bankdb`) |
 | **Redis Cache** | `localhost:6379` | Redis 7 (Alpine) |
 

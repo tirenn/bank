@@ -22,11 +22,11 @@ Autonomous AI Banking Copilot microservice built with **FastAPI**, **Private Mod
 Configure via `.env` or Docker Compose:
 
 ```ini
-PORT=8005
+PORT=8083
 ENVIRONMENT=development
 
 # Core Banking Bridge
-CORE_BANKING_URL=http://bank-core:8085
+CORE_BANKING_URL=http://bank-core:8082
 
 # Distributed Storage & Caching
 REDIS_URL=redis://bank-redis:6379/0

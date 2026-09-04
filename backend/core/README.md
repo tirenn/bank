@@ -20,7 +20,7 @@ High-performance, transactional Core Banking Engine written in **Golang 1.26** f
 Copy `.env.example` to `.env` or configure via Docker Compose:
 
 ```ini
-PORT=8085
+PORT=8082
 ENVIRONMENT=development
 
 # Database Connection (PostgreSQL 16)

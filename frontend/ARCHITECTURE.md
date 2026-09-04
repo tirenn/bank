@@ -29,8 +29,8 @@ graph TD
     end
 
     subgraph TransportTier ["Axios Transport Tier"]
-        CustomerPortals --> CoreAPI["coreClient (Port 8085)"]
-        AdminPortals --> AIAPI["aiClient (Port 8005)"]
+        CustomerPortals --> CoreAPI["coreClient (Port 8082)"]
+        AdminPortals --> AIAPI["aiClient (Port 8083)"]
         CopilotLayer --> AIAPI
     end
 ```

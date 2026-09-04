@@ -1,4 +1,4 @@
-﻿# Project Context: Tirenn Core Digital Banking & Nova AI Platform
+# Project Context: Tirenn Core Digital Banking & Nova AI Platform
 
 ## Overview
 A high-performance digital banking system engineered with strict architectural boundaries, comprehensive distributed logging (Grafana Loki format), Redis sliding window rate limiting, GORM & Goose database migrations, and an intelligent Nova AI financial copilot.
@@ -10,9 +10,9 @@ Projects/
 │
 └── bank/
     ├── backend/
-    │   ├── core/           # Go 1.26 + Gin + GORM + Goose + Viper + Redis RateLimiter (:8085)
-    │   └── ai-service/     # Python 3.11 + FastAPI + ChromaDB RAG + Redis RateLimiter (:8005)
-    └── frontend/           # React 18 + Vite + Tailwind CSS v4 (:5173)
+    │   ├── core/           # Go 1.26 + Gin + GORM + Goose + Viper + Redis RateLimiter (:8082)
+    │   └── ai-service/     # Python 3.11 + FastAPI + ChromaDB RAG + Redis RateLimiter (:8083)
+    └── frontend/           # React 18 + Vite + Tailwind CSS v4 (:7081)
 ```
 
 ## Mandatory Engineering Standards Applied

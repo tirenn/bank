@@ -15,17 +15,17 @@ flowchart TB
     end
 
     subgraph Ingress ["API Gateway & Ingress Tier"]
-        Nginx["Nginx Reverse Proxy (Port 5173 / 80)"]
+        Nginx["Nginx Reverse Proxy (Port 7081)"]
         RateLimiter["Redis Sliding-Window Rate Limiter<br/>(60 req/min/IP)"]
     end
 
-    subgraph CoreBanking ["Core Banking Microservice (Port 8085)"]
+    subgraph CoreBanking ["Core Banking Microservice (Port 8082)"]
         GinAPI["Golang Gin REST API"]
         CleanArch["Clean Architecture Engine<br/>(Transfers, Accounts, Forex, Loans)"]
         ForexGateway["Decoupled Forex Gateway"]
     end
 
-    subgraph AIService ["Autonomous AI Microservice (Port 8005)"]
+    subgraph AIService ["Autonomous AI Microservice (Port 8083)"]
         FastAPI["Python FastAPI Microservice"]
         Planner["Planner Orchestrator (DAG Engine)"]
         SubAgents["Multi-Agent Swarm<br/>(Transaction, Wealth, Security, Identity, Support)"]

@@ -1,0 +1,21 @@
+# ==============================================================================
+# GitHub CODEOWNERS for Tirenn Core Banking & AI Monorepo
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# ==============================================================================
+
+# Default owner for everything in the repository
+* @tirenn
+
+# CI/CD, Workflows & Infrastructure
+/.github/ @tirenn
+/docker-compose.yml @tirenn
+/Makefile @tirenn
+
+# Backend Core Service (Golang)
+/backend/core/ @tirenn
+
+# AI Microservice (Python / FastAPI)
+/backend/ai-service/ @tirenn
+
+# Frontend Service (React / Vite)
+/frontend/ @tirenn
