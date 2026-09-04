@@ -43,11 +43,11 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
         if (data?.models && data.models.length > 0) {
           setAvailableModels(data.models);
           const savedModel = sessionStorage.getItem('openrouter_model');
-          if (!savedModel) {
-            const chosen = data.default_model || data.models[0];
-            setModel(chosen);
-          } else {
+          const savedKey = sessionStorage.getItem('openrouter_key');
+          if (savedModel && savedKey) {
             setModel(savedModel);
+          } else {
+            setModel('');
           }
         }
       } catch (err) {
@@ -84,7 +84,12 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
       const payloadMessages = newMessages.map((m) => ({ role: m.role, content: m.content }));
       const currentApiKey = sessionStorage.getItem('openrouter_key') || '';
       const currentModel = sessionStorage.getItem('openrouter_model') || model;
-      const res = await aiAssistantApi.sendChat(payloadMessages, currentApiKey, currentModel);
+      const isPaidMode = Boolean(currentApiKey && currentModel);
+      const res = await aiAssistantApi.sendChat(
+        payloadMessages,
+        isPaidMode ? currentApiKey : '',
+        isPaidMode ? currentModel : ''
+      );
 
 
       setMessages([

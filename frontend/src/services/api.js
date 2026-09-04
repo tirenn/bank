@@ -186,10 +186,10 @@ export const aiAssistantApi = {
     return res.data;
   },
   sendChat: async (messages, apiKey = '', model = '') => {
+    const isPaid = Boolean(apiKey && model);
     const payload = {
       messages,
-      ...(apiKey ? { openrouter_api_key: apiKey } : {}),
-      ...(model ? { model } : {}),
+      ...(isPaid ? { openrouter_api_key: apiKey, model } : {}),
     };
     const res = await aiClient.post('/chat', payload);
     return res.data;

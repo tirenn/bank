@@ -88,14 +88,7 @@ def resolve_model_execution_plan(
 
     # Case 3: Free Tier Mode (No Custom Key) -> Sequential Multi-Model Cascading Fallback Queue
     pool = active_db_models or _cached_db_models or []
-    models_queue: List[str] = []
-
-    if has_model and str(model_override).strip() in pool:
-        models_queue.append(str(model_override).strip())
-
-    for m in pool:
-        if m and m not in models_queue:
-            models_queue.append(m)
+    models_queue: List[str] = [m for m in pool if m]
 
     logger.info(f"🔄 [FREE TIER CASCADE MODE] Active model queue: {models_queue} (Fallback Enabled)")
     return ModelExecutionPlan(

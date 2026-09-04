@@ -64,11 +64,13 @@ async def chat(
         context_messages = req.messages
 
     # 3. Execute multi-agent processing with context & workflow engine
+    # In dedicated paid mode, model is strictly plan.models[0]. In free tier mode, model_override is None to allow automatic fallback across active DB models.
+    effective_model = plan.models[0] if plan.is_paid_dedicated else None
     response = await agent_service.process_chat(
         messages=context_messages,
         auth_token=token,
-        api_key_override=req.openrouter_api_key,
-        model_override=req.model.strip() if req.model else None,
+        api_key_override=req.openrouter_api_key if plan.is_paid_dedicated else None,
+        model_override=effective_model,
         user_id=user_id
     )
 
