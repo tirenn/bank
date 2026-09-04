@@ -9,7 +9,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${PORT:-7081}:${PORT:-7081}"
+      - "127.0.0.1:${PORT:-7081}:${PORT:-7081}"
     networks:
       - tirenn-net
 

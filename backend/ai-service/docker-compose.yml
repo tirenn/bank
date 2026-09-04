@@ -8,8 +8,6 @@ services:
     restart: always
     env_file:
       - .env
-    ports:
-      - "${PORT:-8083}:${PORT:-8083}"
     networks:
       - tirenn-net
 
