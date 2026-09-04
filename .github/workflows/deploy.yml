@@ -76,9 +76,9 @@ jobs:
           TARGET_CONTAINER: ${{ steps.parse_tag.outputs.target_container }}
           SERVICE_TYPE: ${{ steps.parse_tag.outputs.service_type }}
           DEPLOY_PATH: ${{ secrets.TARGET_DIR || '/root/Projects/bank' }}
-          DOPPLER_TOKEN_BE: ${{ secrets.DOPPLER_TOKEN_BE }}
+          DOPPLER_TOKEN_BE: ${{ secrets.DOPPLER_TOKEN_CORE || secrets.DOPPLER_TOKEN_BE }}
           DOPPLER_TOKEN_AI: ${{ secrets.DOPPLER_TOKEN_AI }}
-          DOPPLER_TOKEN_FE: ${{ secrets.DOPPLER_TOKEN_FE }}
+          DOPPLER_TOKEN_FE: ${{ secrets.DOPPLER_TOKEN_FRONTEND || secrets.DOPPLER_TOKEN_FE }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
