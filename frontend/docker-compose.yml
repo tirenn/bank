@@ -1,6 +1,4 @@
-﻿version: '3.8'
-
-services:
+﻿services:
   bank-frontend:
     build:
       context: .
@@ -10,7 +8,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${PORT:-5173}:80"
+      - "127.0.0.1:${PORT:-7081}:${PORT:-7081}"
     networks:
       - tirenn-net
 

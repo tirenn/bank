@@ -1,6 +1,4 @@
-﻿version: '3.8'
-
-services:
+﻿services:
   bank-core:
     build:
       context: .
@@ -10,7 +8,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${PORT:-8085}:${PORT:-8085}"
+      - "127.0.0.1:${PORT:-8082}:${PORT:-8082}"
     networks:
       - tirenn-net
 
