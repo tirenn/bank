@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"bank-core/internal/domain"
@@ -13,16 +14,30 @@ import (
 type TransferService struct {
 	txRepo      domain.TransactionRepository
 	accountRepo domain.AccountRepository
+	defaultOTP  string
 }
 
-func NewTransferService(txRepo domain.TransactionRepository, accountRepo domain.AccountRepository) domain.TransferService {
+func NewTransferService(txRepo domain.TransactionRepository, accountRepo domain.AccountRepository, defaultOTP string) *TransferService {
 	return &TransferService{
 		txRepo:      txRepo,
 		accountRepo: accountRepo,
+		defaultOTP:  defaultOTP,
 	}
 }
 
 func (s *TransferService) Transfer(ctx context.Context, userID uint64, req *domain.TransferRequest) (*domain.Transaction, error) {
+	// Confirmation / OTP Gate
+	if s.defaultOTP != "" {
+		trimmedOTP := strings.TrimSpace(req.OTP)
+		if trimmedOTP == "" || trimmedOTP != s.defaultOTP {
+			logger.Warn(ctx, "Transfer rejected: invalid or missing OTP", map[string]interface{}{
+				"user_id":      userID,
+				"provided_otp": trimmedOTP,
+			})
+			return nil, errors.New("invalid or missing transfer confirmation OTP. Please provide the 6-digit confirmation code")
+		}
+	}
+
 	fromAcc, err := s.accountRepo.FindByUserID(ctx, userID)
 	if err != nil {
 		logger.Error(ctx, "Failed to resolve sender account", err, map[string]interface{}{"user_id": userID})

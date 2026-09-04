@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const CORE_API_BASE = import.meta.env.VITE_CORE_API_URL || '/api/v1';
 const AI_API_BASE = import.meta.env.VITE_AI_API_URL || '/api/v1/ai';
+export const DEFAULT_TRANSFER_OTP = import.meta.env.VITE_DEFAULT_TRANSFER_OTP || '888888';
 
 
 const coreClient = axios.create({
@@ -88,13 +89,14 @@ export const bankingApi = {
     return res.data;
   },
 
-  transfer: async (toAccountNumber, amountDollars, description, category = 'Transfer') => {
+  transfer: async (toAccountNumber, amountDollars, description, category = 'Transfer', otp = '') => {
     const amountCents = Math.round(amountDollars * 100);
     const res = await coreClient.post('/transfers', {
       to_account_number: toAccountNumber,
       amount_cents: amountCents,
       description: description || 'Transfer',
       category: category,
+      otp: otp ? String(otp).trim() : DEFAULT_TRANSFER_OTP,
     });
     return res.data;
   },

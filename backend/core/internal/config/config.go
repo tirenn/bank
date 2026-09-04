@@ -17,6 +17,7 @@ type Config struct {
 	RateLimitWin      int    `mapstructure:"RATE_LIMIT_WINDOW_SEC"`
 	Environment       string `mapstructure:"ENVIRONMENT"`
 	ForexAPIURL       string `mapstructure:"FOREX_API_URL"`
+	DefaultTransferOTP string `mapstructure:"DEFAULT_TRANSFER_OTP"`
 }
 
 func Load() (*Config, error) {
@@ -31,6 +32,7 @@ func Load() (*Config, error) {
 	v.SetDefault("RATE_LIMIT_WINDOW_SEC", 60)
 	v.SetDefault("ENVIRONMENT", "development")
 	v.SetDefault("FOREX_API_URL", "https://open.er-api.com/v6/latest/USD")
+	v.SetDefault("DEFAULT_TRANSFER_OTP", "888888")
 
 
 

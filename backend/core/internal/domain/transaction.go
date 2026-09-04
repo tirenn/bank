@@ -37,6 +37,7 @@ type TransferRequest struct {
 	AmountCents      int64   `json:"amount_cents" binding:"required,gt=0"`
 	Description      string  `json:"description"`
 	Category         string  `json:"category"`
+	OTP              string  `json:"otp"`
 }
 
 type DepositWithdrawRequest struct {

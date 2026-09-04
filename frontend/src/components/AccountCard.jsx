@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Copy, Check, ArrowUpRight, Plus, CreditCard, ShieldCheck, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { copyToClipboard } from '../utils/clipboard';
+import { DEFAULT_TRANSFER_OTP } from '../services/api';
 
 export const AccountCard = ({ onTransferClick, onDepositClick }) => {
   const { user, account, accounts, selectAccount } = useAuth();
@@ -190,6 +191,21 @@ export const AccountCard = ({ onTransferClick, onDepositClick }) => {
           <span className="text-slate-400 text-2xl font-light">$</span>
           <span>{showBalance ? balance : '••••••••'}</span>
           <span className="text-xs font-normal text-slate-500 font-sans">{account?.currency || 'USD'}</span>
+        </div>
+      </div>
+
+      {/* Transfer OTP Gate Security Banner */}
+      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs">
+        <div className="flex items-center space-x-2">
+          <ShieldCheck className="h-4 w-4 text-amber-400 flex-shrink-0" />
+          <div>
+            <div className="text-[11px] font-semibold text-amber-300">Transfer Confirmation Gate Active</div>
+            <div className="text-[10px] text-amber-400/80 font-mono">2FA Protection required for all outgoing wires</div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-1.5 bg-black/40 px-2.5 py-1 rounded-lg border border-amber-500/30">
+          <span className="text-[9px] uppercase tracking-wider text-amber-500 font-mono">Demo OTP:</span>
+          <span className="font-mono text-xs font-bold text-amber-300 tracking-widest">{DEFAULT_TRANSFER_OTP}</span>
         </div>
       </div>
 

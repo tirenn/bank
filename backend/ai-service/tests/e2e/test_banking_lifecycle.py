@@ -148,15 +148,27 @@ class BankingE2ETester:
         pass_lookup = lookup_res.status_code == 200 and lookup_res.json().get("account_number") == acc_b_num
         results.append(("Suite 2: Ledger", "Recipient Account Lookup", pass_lookup, f"Recipient: {lookup_res.json().get('account_name')}"))
 
-        # 6. P2P Transfer: Alice sends $200 (20,000 cents) to Bob
+        # 6a. OTP Gate Verification: Rejection of Invalid OTP
+        invalid_otp_res = self.client.post("/api/v1/transfers", headers=self._get_headers(token_a), json={
+            "to_account_number": acc_b_num,
+            "amount_cents": 20000,
+            "description": "Dinner Split",
+            "category": "Food & Dining",
+            "otp": "000000"
+        })
+        pass_otp_gate = invalid_otp_res.status_code == 400
+        results.append(("Suite 2: Ledger", "OTP Gate: Reject Invalid OTP", pass_otp_gate, f"Rejected with Status {invalid_otp_res.status_code}"))
+
+        # 6b. P2P Transfer: Alice sends $200 (20,000 cents) to Bob with valid OTP
         xfer_res = self.client.post("/api/v1/transfers", headers=self._get_headers(token_a), json={
             "to_account_number": acc_b_num,
             "amount_cents": 20000,
             "description": "Dinner Split",
-            "category": "Food & Dining"
+            "category": "Food & Dining",
+            "otp": "888888"
         })
         pass_xfer = xfer_res.status_code == 200
-        results.append(("Suite 2: Ledger", "Execute P2P Transfer ($200.00)", pass_xfer, f"Status: {xfer_res.status_code}"))
+        results.append(("Suite 2: Ledger", "Execute P2P Transfer with Valid OTP", pass_xfer, f"Status: {xfer_res.status_code}"))
 
         # 7. ACID Balance Verification
         alice_bal_cents = self.client.get("/api/v1/accounts/my", headers=self._get_headers(token_a)).json().get("account", {}).get("balance_cents", 0)

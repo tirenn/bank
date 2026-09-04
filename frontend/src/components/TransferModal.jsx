@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, AlertCircle, CheckCircle2, UserCheck, ArrowRight } from 'lucide-react';
-import { bankingApi } from '../services/api';
+import { X, Send, AlertCircle, CheckCircle2, UserCheck, ArrowRight, ShieldCheck } from 'lucide-react';
+import { bankingApi, DEFAULT_TRANSFER_OTP } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }) => {
@@ -9,6 +9,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Transfer');
+  const [otp, setOtp] = useState(DEFAULT_TRANSFER_OTP);
   const [recipientInfo, setRecipientInfo] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
       setAmount(initialData.amount_dollars ? String(initialData.amount_dollars) : '');
       setDescription(initialData.description || 'AI Initiated Transfer');
       setCategory(initialData.category || 'Transfer');
+      setOtp(DEFAULT_TRANSFER_OTP);
       if (initialData.to_account_number) {
         verifyRecipient(initialData.to_account_number);
       }
@@ -29,6 +31,7 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
       setAmount('');
       setDescription('');
       setCategory('Transfer');
+      setOtp(DEFAULT_TRANSFER_OTP);
       setRecipientInfo(null);
       setError('');
       setSuccess(false);
@@ -68,9 +71,14 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
       return;
     }
 
+    if (!otp || otp.trim().length !== 6) {
+      setError('Please enter the 6-digit confirmation OTP.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await bankingApi.transfer(toAccount.trim(), amt, description, category);
+      await bankingApi.transfer(toAccount.trim(), amt, description, category, otp.trim());
       setSuccess(true);
       await refreshAccount();
       if (onSuccess) onSuccess();
@@ -229,6 +237,35 @@ export const TransferModal = ({ isOpen, onClose, onSuccess, initialData = null }
               placeholder="e.g. Wire, Invoice split"
               className="w-full px-3 py-2 bg-black/40 border border-white/[0.08] rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500/60 text-xs"
             />
+          </div>
+
+          {/* Confirmation OTP Gate Card */}
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5 text-amber-400">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <label className="text-[11px] font-semibold">Confirmation OTP Gate</label>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOtp(DEFAULT_TRANSFER_OTP)}
+                className="text-[10px] text-amber-300 hover:text-amber-200 underline font-mono cursor-pointer"
+              >
+                Autofill Demo OTP ({DEFAULT_TRANSFER_OTP})
+              </button>
+            </div>
+            <input
+              type="text"
+              required
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="Enter 6-digit confirmation OTP"
+              className="w-full px-3 py-2 bg-black/50 border border-amber-500/30 rounded-lg text-amber-200 placeholder-amber-500/40 focus:outline-none focus:border-amber-400 text-xs font-mono tracking-widest text-center"
+            />
+            <span className="text-[10px] text-slate-500 block text-center font-mono">
+              2FA protection active • Configured in .env
+            </span>
           </div>
 
           {/* Actions */}

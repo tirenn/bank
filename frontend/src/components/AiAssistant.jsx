@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { X, Send, Bot, User, Settings, ArrowRight, CheckCircle2, RefreshCw, Key, ShieldCheck, RotateCcw, Copy, Check } from 'lucide-react';
-import { aiAssistantApi, bankingApi } from '../services/api';
+import { aiAssistantApi, bankingApi, DEFAULT_TRANSFER_OTP } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { copyToClipboard } from '../utils/clipboard';
 
@@ -29,6 +29,7 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
   const [copiedMessageIdx, setCopiedMessageIdx] = useState(null);
 
   const [transferStatus, setTransferStatus] = useState({});
+  const [transferOtp, setTransferOtp] = useState({});
 
   const messagesEndRef = useRef(null);
 
@@ -133,13 +134,15 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
 
 
   const handleConfirmTransfer = async (draft, msgIndex) => {
+    const otpToUse = (transferOtp[msgIndex] !== undefined ? transferOtp[msgIndex] : DEFAULT_TRANSFER_OTP).trim();
     setExecutingTransfer(true);
     try {
       await bankingApi.transfer(
         draft.to_account_number,
         draft.amount_dollars,
         draft.description,
-        draft.category || 'Transfer'
+        draft.category || 'Transfer',
+        otpToUse
       );
       setTransferStatus((prev) => ({ ...prev, [msgIndex]: 'SUCCESS' }));
       await refreshAccount();
@@ -475,6 +478,31 @@ export const AiAssistant = ({ isOpen, onClose, onTransferSuccess, externalPrompt
                       <div>Recipient: <strong className="text-slate-200">{msg.action_data.recipient_name}</strong></div>
                       <div>Account: <span className="font-mono text-slate-300">{msg.action_data.to_account_number}</span></div>
                       <div>Note: <span className="text-slate-300">{msg.action_data.description}</span></div>
+                    </div>
+
+                    {/* Confirmation OTP Gate Field */}
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <div className="flex items-center space-x-1 text-amber-400 font-semibold">
+                          <ShieldCheck className="h-3 w-3" />
+                          <span>Confirmation OTP</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTransferOtp((prev) => ({ ...prev, [idx]: DEFAULT_TRANSFER_OTP }))}
+                          className="text-[10px] text-amber-300 underline font-mono cursor-pointer hover:text-amber-200"
+                        >
+                          Auto ({DEFAULT_TRANSFER_OTP})
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={transferOtp[idx] !== undefined ? transferOtp[idx] : DEFAULT_TRANSFER_OTP}
+                        onChange={(e) => setTransferOtp((prev) => ({ ...prev, [idx]: e.target.value }))}
+                        placeholder="Enter 6-digit OTP"
+                        className="w-full px-2 py-1 bg-black/50 border border-amber-500/30 rounded text-amber-200 text-xs font-mono tracking-widest text-center focus:outline-none focus:border-amber-400"
+                      />
                     </div>
 
                     {transferStatus[idx] === 'SUCCESS' ? (
