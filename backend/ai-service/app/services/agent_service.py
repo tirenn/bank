@@ -20,6 +20,7 @@ SOLID Principles Applied:
 from typing import List, Dict, Any, Optional
 from openai import AsyncOpenAI
 
+from app.config import settings
 from app.domain.schemas import ChatMessage, ChatResponse, PlanStep, ExecutionPlan
 from app.domain.interfaces import IPlanGenerator
 from app.services.model_fallback import model_fallback
@@ -265,7 +266,7 @@ class AgentService:
             )
 
         # Initialize AsyncOpenAI client configured for OpenRouter
-        api_key_to_use = api_key_override or "dummy_key_for_free_models"
+        api_key_to_use = api_key_override or settings.OPENROUTER_API_KEY.strip()
         client = AsyncOpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key_to_use,
