@@ -39,7 +39,7 @@ jobs:
           if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-fe$ ]]; then
             TARGET_CONTAINER="bank-frontend"
             SERVICE_TYPE="fe"
-          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(core|be)$ ]]; then
+          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-core$ ]]; then
             TARGET_CONTAINER="bank-core"
             SERVICE_TYPE="core"
           elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-ai$ ]]; then
