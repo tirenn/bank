@@ -64,8 +64,8 @@ flowchart TB
     RateLimiter --> RedisStore
 
     %% Internal Proxy Routing
-    Nginx -->|Proxy /api/v1/auth, accounts, forex, loans| GinAPI
-    Nginx -->|Proxy /api/v1/ai/chat, models, analytics, faq| FastAPI
+    Nginx -->|"Proxy /api/v1/auth, accounts, forex, loans"| GinAPI
+    Nginx -->|"Proxy /api/v1/ai/chat, models, analytics, faq"| FastAPI
 
     %% Core Banking Flow
     GinAPI --> CleanArch
@@ -73,20 +73,20 @@ flowchart TB
     ACIDLedger --> Postgres
     CleanArch --> ForexGateway
     ForexGateway --> RedisStore
-    ForexGateway -.->|External Rate Pull| ForexAPI
+    ForexGateway -.->|"External Rate Pull"| ForexAPI
 
     %% AI Copilot Internal Flow
     FastAPI --> Guardrails
     Guardrails --> Planner
     Planner --> SubAgents
     SubAgents --> FallbackQueue
-    FallbackQueue -.->|LLM Completion Calls| OpenRouter
+    FallbackQueue -.->|"LLM Completion Calls"| OpenRouter
     SubAgents --> ChromaStore
     SubAgents --> WorkflowEngine
     SubAgents --> CostTracker
     WorkflowEngine --> RedisStore
     CostTracker --> RedisStore
-    SubAgents -->|Internal Authenticated Tool Invocation| MCPServer
+    SubAgents -->|"Internal Authenticated Tool Invocation"| MCPServer
     MCPServer --> CleanArch
 ```
 
@@ -254,8 +254,9 @@ flowchart LR
         FinalAnswer["Factual Policy Response with Exact Citations"]
 
         UserQ --> CacheCheck
-        CacheCheck -->|Yes (Hit)| RedisAnswer --> FinalAnswer
-        CacheCheck -->|No (Miss)| DenseSearch
+        CacheCheck -->|"Cache Hit"| RedisAnswer
+        RedisAnswer --> FinalAnswer
+        CacheCheck -->|"Cache Miss"| DenseSearch
         ChromaStore -.-> DenseSearch
         DenseSearch --> Synthesizer
         Synthesizer --> RedisAnswer
@@ -271,28 +272,28 @@ flowchart LR
 stateDiagram-v2
     [*] --> Idle: User enters portal
     
-    Idle --> Step1_Initiated: Trigger Multi-Turn Form (e.g., Loan Application / Tier-2 KYC)
+    Idle --> Step1_Initiated: Trigger Multi-Turn Form
     
     state "Step 1: In Progress" as Step1_Initiated {
-        Save_S1: Save Draft in Redis (workflow:loan:user_123, TTL: 604,800s)
+        Save_S1: Save Draft in Redis (workflow:loan:user_123, TTL 604,800s)
     }
     
-    Step1_Initiated --> Interrupted: User closes browser or tab (Days 1 - 6)
+    Step1_Initiated --> Interrupted: User closes browser or tab
     
     state "Asynchronous Idle Buffer" as Interrupted {
         Chat_History_Expires: 24h Chat Session Buffer Expires
         Workflow_Preserved: 7-Day Redis State remains intact with Collected Data
     }
     
-    Interrupted --> Step2_Resumed: User returns within 7 days & types "Lanjutkan pengajuan pinjaman saya"
+    Interrupted --> Step2_Resumed: User returns within 7 days
     
     state "Step 2: Context Restoration" as Step2_Resumed {
         Restore_State: AI recovers accumulated form fields from Redis
-        Prompt_Next: Prompts user for next required field (e.g., Proof of Income)
+        Prompt_Next: Prompts user for next required field
     }
     
     Step2_Resumed --> Final_Submission: User completes all required steps
-    Step2_Resumed --> Cancelled: User says "Batal pengajuan"
+    Step2_Resumed --> Cancelled: User cancels application
     
     state "Completion Phase" as Final_Submission {
         Persist_DB: Write permanently to PostgreSQL 16
