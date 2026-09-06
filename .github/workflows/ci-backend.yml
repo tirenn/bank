@@ -2,8 +2,6 @@ name: "Backend CI / PR Checks"
 
 on:
   pull_request:
-    paths:
-      - 'backend/core/**'
     branches:
       - main
       - master

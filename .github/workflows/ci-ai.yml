@@ -2,8 +2,6 @@ name: "AI Microservice CI / PR Checks"
 
 on:
   pull_request:
-    paths:
-      - 'backend/ai-service/**'
     branches:
       - main
       - master

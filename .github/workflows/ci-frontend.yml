@@ -2,8 +2,6 @@ name: "Frontend CI / PR Checks"
 
 on:
   pull_request:
-    paths:
-      - 'frontend/**'
     branches:
       - main
       - master
