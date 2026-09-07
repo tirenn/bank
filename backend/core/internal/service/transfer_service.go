@@ -14,15 +14,129 @@ import (
 type TransferService struct {
 	txRepo      domain.TransactionRepository
 	accountRepo domain.AccountRepository
+	userRepo    domain.UserRepository
 	defaultOTP  string
 }
 
-func NewTransferService(txRepo domain.TransactionRepository, accountRepo domain.AccountRepository, defaultOTP string) *TransferService {
+func NewTransferService(txRepo domain.TransactionRepository, accountRepo domain.AccountRepository, userRepo domain.UserRepository, defaultOTP string) *TransferService {
 	return &TransferService{
 		txRepo:      txRepo,
 		accountRepo: accountRepo,
+		userRepo:    userRepo,
 		defaultOTP:  defaultOTP,
 	}
+}
+
+// DraftTransfer validates sender balance/limits, verifies recipient account existence and status, and prepares the transfer draft.
+func (s *TransferService) DraftTransfer(ctx context.Context, userID uint64, req *domain.DraftTransferRequest) (*domain.TransferDraftResponse, error) {
+	if req.AmountDollars <= 0 {
+		return nil, errors.New("transfer amount must be strictly greater than zero")
+	}
+	amountCents := int64(req.AmountDollars * 100)
+	if amountCents <= 0 {
+		return nil, errors.New("transfer amount is too small (minimum is $0.01)")
+	}
+
+	toAccNum := strings.TrimSpace(req.ToAccountNumber)
+	if toAccNum == "" {
+		return nil, errors.New("recipient account number is required")
+	}
+
+	userAccounts, err := s.accountRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		logger.Error(ctx, "Failed to load user accounts for transfer draft", err, map[string]interface{}{"user_id": userID})
+		return nil, fmt.Errorf("failed to load user accounts: %w", err)
+	}
+	if len(userAccounts) == 0 {
+		return nil, errors.New("no bank account found for your profile. Please open an account first")
+	}
+
+	var fromAccount *domain.Account
+	fromAccNum := strings.TrimSpace(req.FromAccountNumber)
+	if fromAccNum != "" {
+		for i := range userAccounts {
+			acc := &userAccounts[i]
+			if strings.EqualFold(acc.AccountNumber, fromAccNum) {
+				fromAccount = acc
+				break
+			}
+		}
+		if fromAccount == nil {
+			return nil, fmt.Errorf("source account '%s' was not found in your profile", fromAccNum)
+		}
+	} else {
+		for i := range userAccounts {
+			if userAccounts[i].Status == "ACTIVE" && !userAccounts[i].IsFrozen {
+				fromAccount = &userAccounts[i]
+				break
+			}
+		}
+		if fromAccount == nil {
+			fromAccount = &userAccounts[0]
+		}
+	}
+
+	if fromAccount.Status != "ACTIVE" || fromAccount.IsFrozen {
+		return nil, fmt.Errorf("source account %s is %s (frozen: %v). Transfers cannot be initiated from this account",
+			fromAccount.AccountNumber, strings.ToLower(fromAccount.Status), fromAccount.IsFrozen)
+	}
+
+	if strings.EqualFold(fromAccount.AccountNumber, toAccNum) {
+		return nil, errors.New("cannot transfer funds to the same source account")
+	}
+
+	if fromAccount.BalanceCents < amountCents {
+		availDollars := float64(fromAccount.BalanceCents) / 100.0
+		return nil, fmt.Errorf("insufficient funds in account %s. Available balance is $%.2f, but requested transfer is $%.2f",
+			fromAccount.AccountNumber, availDollars, req.AmountDollars)
+	}
+
+	if fromAccount.DailyTransferLimitCents > 0 && amountCents > fromAccount.DailyTransferLimitCents {
+		limitDollars := float64(fromAccount.DailyTransferLimitCents) / 100.0
+		return nil, fmt.Errorf("transfer amount ($%.2f) exceeds daily transfer limit of $%.2f for account %s",
+			req.AmountDollars, limitDollars, fromAccount.AccountNumber)
+	}
+
+	toAcc, err := s.accountRepo.FindByAccountNumber(ctx, toAccNum)
+	if err != nil || toAcc == nil {
+		return nil, fmt.Errorf("recipient account '%s' was not found or does not exist", toAccNum)
+	}
+
+	if toAcc.Status != "ACTIVE" || toAcc.IsFrozen {
+		return nil, fmt.Errorf("recipient account '%s' is not active (status: %s). Transfers cannot be sent to an inactive or frozen account",
+			toAccNum, toAcc.Status)
+	}
+
+	recipientName := "Verified Account"
+	if s.userRepo != nil {
+		if recipientUser, err := s.userRepo.FindByID(ctx, toAcc.UserID); err == nil && recipientUser != nil && strings.TrimSpace(recipientUser.FullName) != "" {
+			recipientName = recipientUser.FullName
+		}
+	}
+
+	desc := strings.TrimSpace(req.Description)
+	if desc == "" {
+		desc = "Transfer via AI Assistant"
+	}
+	cat := strings.TrimSpace(req.Category)
+	if cat == "" {
+		cat = "Transfer"
+	}
+
+	summaryText := fmt.Sprintf("Transfer Authorization Draft:\n- Source: %s\n- Recipient: %s (%s)\n- Amount: $%.2f\n- Note: %s\nPlease confirm via card in chat.",
+		fromAccount.AccountNumber, recipientName, toAccNum, req.AmountDollars, desc)
+
+	return &domain.TransferDraftResponse{
+		FromAccountID:     fromAccount.ID,
+		FromAccountNumber: fromAccount.AccountNumber,
+		ToAccountNumber:   toAccNum,
+		RecipientName:     recipientName,
+		AmountDollars:     req.AmountDollars,
+		AmountCents:       amountCents,
+		Description:       desc,
+		Category:          cat,
+		SummaryText:       summaryText,
+	}, nil
 }
 
 func (s *TransferService) Transfer(ctx context.Context, userID uint64, req *domain.TransferRequest) (*domain.Transaction, error) {

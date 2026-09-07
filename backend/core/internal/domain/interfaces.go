@@ -53,11 +53,13 @@ type AccountService interface {
 	LookupAccount(ctx context.Context, accountNumber string) (map[string]interface{}, error)
 	UpdateStatus(ctx context.Context, userID uint64, req *UpdateAccountStatusRequest) (*Account, error)
 	UpdateLimits(ctx context.Context, userID uint64, req *UpdateAccountLimitRequest) (*Account, error)
+	ResolveAccountByIdentifier(ctx context.Context, userID uint64, identifier string) (*Account, error)
 }
 
 
 // TransferService defines fund transfer and ledger operations
 type TransferService interface {
+	DraftTransfer(ctx context.Context, userID uint64, req *DraftTransferRequest) (*TransferDraftResponse, error)
 	Transfer(ctx context.Context, userID uint64, req *TransferRequest) (*Transaction, error)
 	Deposit(ctx context.Context, userID uint64, req *DepositWithdrawRequest) (*Transaction, error)
 	GetTransactions(ctx context.Context, userID uint64, limit int, offset int, category string) ([]Transaction, error)

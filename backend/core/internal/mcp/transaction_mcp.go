@@ -81,14 +81,15 @@ func (s *TransactionMCPServer) HandleJSONRPC(c *gin.Context) {
 			},
 			{
 				Name:        "draft_transfer",
-				Description: "Validate recipient and prepare fund transfer confirmation draft.",
+				Description: "Validate sender balance/limits, verify recipient account existence and status, and prepare fund transfer confirmation draft.",
 				InputSchema: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"to_account_number": map[string]interface{}{"type": "string", "description": "Recipient account number"},
-						"amount":            map[string]interface{}{"type": "number", "description": "Amount in dollars"},
-						"description":       map[string]interface{}{"type": "string", "description": "Transfer note"},
-						"category":          map[string]interface{}{"type": "string", "description": "Transfer category"},
+						"from_account_number": map[string]interface{}{"type": "string", "description": "Optional sender account number if user has multiple accounts"},
+						"to_account_number":   map[string]interface{}{"type": "string", "description": "Recipient account number"},
+						"amount":              map[string]interface{}{"type": "number", "description": "Amount in dollars"},
+						"description":         map[string]interface{}{"type": "string", "description": "Transfer note"},
+						"category":            map[string]interface{}{"type": "string", "description": "Transfer category"},
 					},
 					"required": []string{"to_account_number", "amount"},
 				},
@@ -194,45 +195,24 @@ func (s *TransactionMCPServer) executeTool(ctx context.Context, userID uint64, n
 		targetCardNum := strings.TrimSpace(parseString(args["card_number"]))
 		targetIdent := strings.TrimSpace(parseString(args["account_identifier"]))
 
-		if targetIdent != "" {
-			if strings.HasPrefix(strings.ToUpper(targetIdent), "ACC-") && targetAccNum == "" {
-				targetAccNum = targetIdent
-			} else if targetCardNum == "" {
-				targetCardNum = targetIdent
-			}
+		query := targetIdent
+		if query == "" {
+			query = targetAccNum
+		}
+		if query == "" {
+			query = targetCardNum
 		}
 
-		cleanTargetCard := strings.ReplaceAll(strings.ReplaceAll(targetCardNum, " ", ""), "-", "")
-
 		var matched *domain.Account
-		hasTargetFilter := targetAccNum != "" || targetCardNum != "" || targetIdent != ""
-
-		if hasTargetFilter {
-			for i := range res.Accounts {
-				acc := &res.Accounts[i]
-				cleanAccCard := strings.ReplaceAll(strings.ReplaceAll(acc.CardNumber, " ", ""), "-", "")
-
-				if targetAccNum != "" && strings.EqualFold(acc.AccountNumber, targetAccNum) {
-					matched = acc
-					break
-				}
-				if cleanTargetCard != "" && (cleanAccCard == cleanTargetCard || strings.HasSuffix(cleanAccCard, cleanTargetCard)) {
-					matched = acc
-					break
-				}
-				if targetIdent != "" && (strings.EqualFold(acc.AccountNumber, targetIdent) || strings.EqualFold(acc.AccountName, targetIdent) || strings.EqualFold(acc.CardBrand, targetIdent)) {
-					matched = acc
-					break
-				}
-			}
-
-			if matched == nil {
+		if query != "" {
+			acc, err := s.accountService.ResolveAccountByIdentifier(ctx, userID, query)
+			if err != nil {
 				return CallToolResult{
 					IsError: true,
-					Content: []ContentItem{{Type: "text", Text: fmt.Sprintf("Access Denied: Account or card '%s' does not belong to your profile or does not exist. You are only authorized to view balances for your own accounts.", targetIdent)}},
+					Content: []ContentItem{{Type: "text", Text: fmt.Sprintf("Access Denied: Account or card '%s' does not belong to your profile or does not exist. You are only authorized to view balances for your own accounts.", query)}},
 				}
 			}
-
+			matched = acc
 		} else {
 			if len(res.Accounts) == 1 {
 				matched = &res.Accounts[0]
@@ -299,39 +279,36 @@ func (s *TransactionMCPServer) executeTool(ctx context.Context, userID uint64, n
 		}
 
 	case "draft_transfer":
-		toAcc, _ := args["to_account_number"].(string)
-		amt, _ := args["amount"].(float64)
-		desc, _ := args["description"].(string)
-		cat, _ := args["category"].(string)
-		if desc == "" {
-			desc = "Transfer via AI Assistant"
-		}
-		if cat == "" {
-			cat = "Transfer"
+		fromAccNum := strings.TrimSpace(parseString(args["from_account_number"]))
+		toAcc := strings.TrimSpace(parseString(args["to_account_number"]))
+		amt := parseFloat(args["amount"])
+		desc := strings.TrimSpace(parseString(args["description"]))
+		cat := strings.TrimSpace(parseString(args["category"]))
+
+		draft, err := s.transferService.DraftTransfer(ctx, userID, &domain.DraftTransferRequest{
+			FromAccountNumber: fromAccNum,
+			ToAccountNumber:   toAcc,
+			AmountDollars:     amt,
+			Description:       desc,
+			Category:          cat,
+		})
+		if err != nil {
+			return CallToolResult{IsError: true, Content: []ContentItem{{Type: "text", Text: err.Error()}}}
 		}
 
-		info, err := s.accountService.LookupAccount(ctx, toAcc)
-		recipientName := "Verified Account"
-		if err == nil {
-			if nameStr, ok := info["owner_name"].(string); ok {
-				recipientName = nameStr
-			}
-		}
-
-		draft := map[string]interface{}{
-			"to_account_number": toAcc,
-			"recipient_name":    recipientName,
-			"amount_dollars":    amt,
-			"amount_cents":      int64(amt * 100),
-			"description":       desc,
-			"category":          cat,
-		}
-		text := fmt.Sprintf("Transfer Authorization Draft:\n- Recipient: %s (%s)\n- Amount: $%.2f\n- Note: %s\nPlease confirm via card in chat.",
-			recipientName, toAcc, amt, desc)
 		return CallToolResult{
-			Content:    []ContentItem{{Type: "text", Text: text}},
+			Content:    []ContentItem{{Type: "text", Text: draft.SummaryText}},
 			ActionType: "CONFIRM_TRANSFER",
-			ActionData: draft,
+			ActionData: map[string]interface{}{
+				"from_account_id":     draft.FromAccountID,
+				"from_account_number": draft.FromAccountNumber,
+				"to_account_number":   draft.ToAccountNumber,
+				"recipient_name":      draft.RecipientName,
+				"amount_dollars":      draft.AmountDollars,
+				"amount_cents":        draft.AmountCents,
+				"description":         draft.Description,
+				"category":            draft.Category,
+			},
 		}
 
 	case "get_transaction_details":

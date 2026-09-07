@@ -40,6 +40,26 @@ type TransferRequest struct {
 	OTP              string  `json:"otp"`
 }
 
+type DraftTransferRequest struct {
+	FromAccountNumber string  `json:"from_account_number,omitempty"`
+	ToAccountNumber   string  `json:"to_account_number" binding:"required"`
+	AmountDollars     float64 `json:"amount_dollars" binding:"required,gt=0"`
+	Description       string  `json:"description,omitempty"`
+	Category          string  `json:"category,omitempty"`
+}
+
+type TransferDraftResponse struct {
+	FromAccountID     uint64  `json:"from_account_id"`
+	FromAccountNumber string  `json:"from_account_number"`
+	ToAccountNumber   string  `json:"to_account_number"`
+	RecipientName     string  `json:"recipient_name"`
+	AmountDollars     float64 `json:"amount_dollars"`
+	AmountCents       int64   `json:"amount_cents"`
+	Description       string  `json:"description"`
+	Category          string  `json:"category"`
+	SummaryText       string  `json:"summary_text"`
+}
+
 type DepositWithdrawRequest struct {
 	AccountID   *uint64 `json:"account_id,omitempty"`
 	AmountCents int64   `json:"amount_cents" binding:"required,gt=0"`
