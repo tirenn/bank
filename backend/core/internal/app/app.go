@@ -80,7 +80,7 @@ func Run() error {
 
 	authService := service.NewAuthService(userRepo, accountRepo, cfg.JWTSecret)
 	accountService := service.NewAccountService(accountRepo, userRepo)
-	transferService := service.NewTransferService(txRepo, accountRepo, cfg.DefaultTransferOTP)
+	transferService := service.NewTransferService(txRepo, accountRepo, userRepo, cfg.DefaultTransferOTP)
 	beneficiaryService := service.NewBeneficiaryService(beneficiaryRepo)
 	forexGateway := gateway.NewForexGateway(cfg.ForexAPIURL, rdb)
 	forexService := service.NewForexService(forexGateway)

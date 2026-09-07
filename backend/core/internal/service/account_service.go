@@ -293,6 +293,43 @@ func (s *AccountService) UpdateLimits(ctx context.Context, userID uint64, req *d
 	return acc, nil
 }
 
+// ResolveAccountByIdentifier resolves an account belonging to the user by account number, card number, or nickname/brand.
+func (s *AccountService) ResolveAccountByIdentifier(ctx context.Context, userID uint64, identifier string) (*domain.Account, error) {
+	trimmed := strings.TrimSpace(identifier)
+	if trimmed == "" {
+		return nil, errors.New("identifier cannot be empty")
+	}
+
+	accounts, err := s.accountRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		logger.Error(ctx, "Failed to list user accounts for resolution", err, map[string]interface{}{"user_id": userID})
+		return nil, err
+	}
+	if len(accounts) == 0 {
+		return nil, errors.New("no bank accounts found for this user")
+	}
+
+	cleanTarget := strings.ReplaceAll(strings.ReplaceAll(trimmed, " ", ""), "-", "")
+	targetLower := strings.ToLower(trimmed)
+
+	for i := range accounts {
+		acc := &accounts[i]
+		cleanAccCard := strings.ReplaceAll(strings.ReplaceAll(acc.CardNumber, " ", ""), "-", "")
+
+		if strings.EqualFold(acc.AccountNumber, trimmed) {
+			return acc, nil
+		}
+		if cleanTarget != "" && (cleanAccCard == cleanTarget || strings.HasSuffix(cleanAccCard, cleanTarget)) {
+			return acc, nil
+		}
+		if targetLower != "" && (strings.ToLower(acc.AccountName) == targetLower || strings.ToLower(acc.CardBrand) == targetLower) {
+			return acc, nil
+		}
+	}
+
+	return nil, fmt.Errorf("account or card '%s' does not belong to your profile or does not exist", trimmed)
+}
+
 
 
 
